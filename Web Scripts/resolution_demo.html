@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Interactive satellite imagery resolution explorer — Umbra SAR vs Maxar optical at multiple resolutions.">
+<title>Satellite Resolution Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#171717;--bg2:#1e1e1e;--bg3:#252525;--brd:#333;--t1:#f0f0f0;--t2:#a0a0a0;--t3:#666;--ac:#6366f1;--ac2:#818cf8;--acg:rgba(99,102,241,.25);--sar:#22d3ee;--sarg:rgba(34,211,238,.25);--sans:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;--tr:.2s cubic-bezier(.4,0,.2,1);--hdr:52px;--ftr:96px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+
+/* Header */
+#hdr{position:fixed;top:0;left:0;right:0;height:var(--hdr);z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(23,23,23,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--brd)}
+.hl{display:flex;align-items:center;gap:10px}
+.hl h1{font-size:15px;font-weight:600;letter-spacing:-.02em;background:linear-gradient(135deg,#f0f0f0,#888);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.logo{display:flex;animation:glow 3s ease-in-out infinite}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 4px var(--acg))}50%{filter:drop-shadow(0 0 12px var(--acg))}}
+.hc{position:absolute;left:50%;transform:translateX(-50%)}
+
+/* Mode toggle */
+.mt{position:relative;display:flex;background:var(--bg3);border:1px solid var(--brd);border-radius:24px;padding:3px;gap:2px}
+.mb{position:relative;z-index:2;display:flex;align-items:center;gap:5px;padding:5px 16px;border:none;background:none;color:var(--t2);font-family:var(--sans);font-size:12px;font-weight:500;cursor:pointer;border-radius:20px;transition:color var(--tr);user-select:none}
+.mb.on{color:var(--t1)}
+.mb:hover:not(.on){color:var(--t1)}
+.ms{position:absolute;top:3px;left:3px;height:calc(100% - 6px);width:calc(50% - 4px);background:var(--ac);border-radius:20px;transition:transform var(--tr),background var(--tr);z-index:1;box-shadow:0 0 12px var(--acg)}
+.ms.sar{transform:translateX(calc(100% + 2px));background:var(--sar);box-shadow:0 0 12px var(--sarg)}
+
+/* Info badge */
+.ib{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--bg3);border:1px solid var(--brd);cursor:pointer;transition:all var(--tr);font-size:13px}
+.ib:hover{border-color:var(--ac);box-shadow:0 0 12px var(--acg)}
+
+/* Viewport */
+#vp{position:fixed;top:var(--hdr);left:0;right:0;bottom:var(--ftr);overflow:hidden;cursor:grab;background:var(--bg)}
+#vp:active{cursor:grabbing}
+#cv{position:absolute;top:0;left:0;image-rendering:auto}
+.hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:6px 16px;background:rgba(30,30,30,.85);backdrop-filter:blur(6px);border:1px solid var(--brd);border-radius:16px;font-size:11px;color:var(--t2);pointer-events:none;transition:opacity .5s}
+.hint.h{opacity:0}
+
+/* Zoom indicator */
+.zi{position:absolute;top:12px;right:12px;padding:5px 12px;background:rgba(30,30,30,.85);backdrop-filter:blur(6px);border:1px solid var(--brd);border-radius:8px;font-family:var(--mono);font-size:12px;color:var(--t2);pointer-events:none}
+
+/* Footer */
+#ftr{position:fixed;bottom:0;left:0;right:0;height:var(--ftr);z-index:100;background:rgba(23,23,23,.92);backdrop-filter:blur(16px);border-top:1px solid var(--brd);display:flex;align-items:center;justify-content:center}
+.fi{display:flex;align-items:center;gap:40px;max-width:900px;width:100%;padding:0 24px}
+
+/* Slider */
+.rc{flex:1;min-width:260px}
+.sh{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
+.sl{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--t2)}
+.rv{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--ac2);transition:color var(--tr)}
+.rv.sar{color:var(--sar)}
+input[type=range]{-webkit-appearance:none;width:100%;height:5px;background:var(--bg3);border-radius:3px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;background:var(--ac);border-radius:50%;cursor:pointer;box-shadow:0 0 0 3px var(--acg);transition:box-shadow var(--tr),transform var(--tr)}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15);box-shadow:0 0 0 5px var(--acg)}
+input[type=range].sar::-webkit-slider-thumb{background:var(--sar);box-shadow:0 0 0 3px var(--sarg)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;background:var(--ac);border:none;border-radius:50%;cursor:pointer}
+input[type=range].sar::-moz-range-thumb{background:var(--sar)}
+.st{display:flex;justify-content:space-between;margin-top:6px;padding:0 2px}
+.tk{font-family:var(--mono);font-size:9px;color:var(--t3);cursor:pointer;transition:color var(--tr);user-select:none}
+.tk:hover{color:var(--t2)}
+.tk.on{color:var(--ac2)}
+.tk.on.sar{color:var(--sar)}
+
+/* Info panel */
+.ip{display:flex;flex-direction:column;gap:5px;min-width:220px;padding:8px 14px;background:var(--bg3);border:1px solid var(--brd);border-radius:8px}
+.ir{display:flex;justify-content:space-between;gap:12px}
+.ik{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--t3)}
+.iv{font-size:11px;color:var(--t2);text-align:right}
+.iv.m{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--t1)}
+
+/* Modal */
+.mo{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;transition:opacity .3s}
+.mo.h{opacity:0;pointer-events:none}
+.md{background:var(--bg2);border:1px solid var(--brd);border-radius:14px;padding:28px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.6);position:relative}
+.md h2{font-size:18px;font-weight:700;margin-bottom:10px}
+.md p{font-size:12px;color:var(--t2);line-height:1.6;margin-bottom:14px}
+.ms2{margin-bottom:16px;padding:12px;background:var(--bg3);border-radius:8px;border:1px solid var(--brd)}
+.ms2 h3{font-size:13px;font-weight:600;margin-bottom:8px}
+.ms2 ul{list-style:none}
+.ms2 li{font-size:11px;color:var(--t2);padding:2px 0}
+.ms2 li strong{color:var(--t1)}
+.mc{position:absolute;top:14px;right:14px;width:28px;height:28px;border:none;background:var(--bg3);color:var(--t2);font-size:18px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all var(--tr)}
+.mc:hover{background:var(--bg);color:var(--t1)}
+@media(max-width:768px){.fi{flex-direction:column;gap:12px;padding:10px 16px}#ftr{height:auto;padding:10px 0}.ip,.rc{min-width:auto;width:100%}}
+</style>
+</head>
+<body>
+<header id="hdr">
+  <div class="hl">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="url(#g)" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="url(#g)"/><line x1="12" y1="2" x2="12" y2="6" stroke="url(#g)" stroke-width="1.5"/><line x1="12" y1="18" x2="12" y2="22" stroke="url(#g)" stroke-width="1.5"/><line x1="2" y1="12" x2="6" y2="12" stroke="url(#g)" stroke-width="1.5"/><line x1="18" y1="12" x2="22" y2="12" stroke="url(#g)" stroke-width="1.5"/><defs><linearGradient id="g" x1="0" y1="0" x2="24" y2="24"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient></defs></svg>
+    </div>
+    <h1>Resolution Demo</h1>
+  </div>
+  <div class="hc">
+    <div class="mt">
+      <button id="bo" class="mb on" data-m="optical"><span>🛰️</span><span>Optical</span></button>
+      <button id="bs" class="mb" data-m="sar"><span>📡</span><span>SAR</span></button>
+      <div id="msl" class="ms"></div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div id="ib" class="ib">ℹ️</div>
+  </div>
+</header>
+
+<main id="vp">
+  <canvas id="cv"></canvas>
+  <div id="dh" class="hint">Scroll to zoom · Drag to pan</div>
+  <div id="zi" class="zi">100%</div>
+</main>
+
+<footer id="ftr">
+  <div class="fi">
+    <div class="rc">
+      <div class="sh"><span class="sl">Resolution</span><span id="rv" class="rv">1x</span></div>
+      <div>
+        <input type="range" id="rs" min="0" max="5" step="1" value="5">
+        <div class="st">
+          <span class="tk" data-i="0">1/32×</span>
+          <span class="tk" data-i="1">1/16×</span>
+          <span class="tk" data-i="2">0.125×</span>
+          <span class="tk" data-i="3">0.25×</span>
+          <span class="tk" data-i="4">0.5×</span>
+          <span class="tk" data-i="5">1×</span>
+        </div>
+      </div>
+    </div>
+    <div class="ip">
+      <div class="ir"><span class="ik">Source</span><span id="is" class="iv">—</span></div>
+      <div class="ir"><span class="ik">GSD</span><span id="ig" class="iv m">—</span></div>
+      <div class="ir"><span class="ik">Effective</span><span id="ie" class="iv m">—</span></div>
+      <div class="ir"><span class="ik">Coverage</span><span id="ic" class="iv m">—</span></div>
+    </div>
+  </div>
+</footer>
+
+<div id="modal" class="mo h">
+  <div class="md">
+    <button id="mx" class="mc">&times;</button>
+    <h2>About This Demo</h2>
+    <p>Compare real overhead satellite imagery at various resolutions. Scroll to zoom, drag to pan, use the slider to simulate resolution degradation.</p>
+    <div class="ms2"><h3>🛰️ Optical — Maxar WorldView-2</h3><ul>
+      <li><strong>Resolution:</strong> 30 cm GSD</li>
+      <li><strong>Location:</strong> Los Angeles, CA (Wildfires Jan 2025)</li>
+      <li><strong>Coverage:</strong> ~2.46 km × 2.46 km</li>
+      <li><strong>License:</strong> CC-BY-NC-4.0</li>
+    </ul></div>
+    <div class="ms2"><h3>📡 SAR — Umbra UMBRA-05</h3><ul>
+      <li><strong>Resolution:</strong> 35 cm GEC</li>
+      <li><strong>Location:</strong> Port of Long Beach, CA</li>
+      <li><strong>Coverage:</strong> ~2.87 km × 2.87 km</li>
+      <li><strong>Band:</strong> X-band (VV Polarization)</li>
+      <li><strong>License:</strong> CC-BY-4.0</li>
+    </ul></div>
+    <div class="ms2"><h3>How It Works</h3><p style="margin:0">Lower resolution levels are created by <strong>average-filter downsampling</strong> the native imagery, then nearest-neighbor upscaling to show what coarser sensors would see.</p></div>
+  </div>
+</div>
+
+<script>
+(()=>{
+'use strict';
+
+// ===== INLINED CONFIG =====
+const CONFIG = {
+  "optical": {
+    "name": "optical",
+    "source": {"provider":"Maxar (WorldView-2)","location":"Los Angeles, CA","resolution":"30cm GSD","license":"CC-BY-NC-4.0","bands":"RGB Visual"},
+    "native_resolution_m": 0.3,
+    "base_width": 8192, "base_height": 8192, "tile_size": 256,
+    "scales": {
+      "0.03125x":{"factor":0.03125,"effective_resolution_m":9.6,"cols":32,"rows":32},
+      "0.0625x": {"factor":0.0625,"effective_resolution_m":4.8,"cols":32,"rows":32},
+      "0.125x":  {"factor":0.125,"effective_resolution_m":2.4,"cols":32,"rows":32},
+      "0.25x":   {"factor":0.25, "effective_resolution_m":1.2,"cols":32,"rows":32},
+      "0.5x":    {"factor":0.5,  "effective_resolution_m":0.6,"cols":32,"rows":32},
+      "1x":      {"factor":1.0,  "effective_resolution_m":0.3,"cols":32,"rows":32}
+    }
+  },
+  "sar": {
+    "name": "sar",
+    "source": {"provider":"Umbra (UMBRA-05)","location":"Port of Long Beach, CA","resolution":"35cm GEC","license":"CC-BY-4.0","band":"X-band SAR (VV)"},
+    "native_resolution_m": 0.35,
+    "base_width": 8192, "base_height": 8192, "tile_size": 256,
+    "scales": {
+      "0.03125x":{"factor":0.03125,"effective_resolution_m":11.2,"cols":32,"rows":32},
+      "0.0625x": {"factor":0.0625,"effective_resolution_m":5.6,"cols":32,"rows":32},
+      "0.125x":  {"factor":0.125,"effective_resolution_m":2.8,"cols":32,"rows":32},
+      "0.25x":   {"factor":0.25, "effective_resolution_m":1.4,"cols":32,"rows":32},
+      "0.5x":    {"factor":0.5,  "effective_resolution_m":0.7,"cols":32,"rows":32},
+      "1x":      {"factor":1.0,  "effective_resolution_m":0.35,"cols":32,"rows":32}
+    }
+  },
+  "tile_size": 256
+};
+
+const SKEYS = ['0.03125x','0.0625x','0.125x','0.25x','0.5x','1x'];
+let mode = 'optical', scaleIdx = 5;
+let cache = {};
+
+// View transform
+let panX = 0, panY = 0, zoom = 1.0;
+const MIN_ZOOM = 0.05, MAX_ZOOM = 4.0;
+let dragging = false, dx0=0, dy0=0, px0=0, py0=0, hintShown=true;
+
+// DOM
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const vp = document.getElementById('vp');
+const sl = document.getElementById('rs');
+const rv = document.getElementById('rv');
+const iSrc = document.getElementById('is');
+const iGsd = document.getElementById('ig');
+const iEff = document.getElementById('ie');
+const iCov = document.getElementById('ic');
+const dh = document.getElementById('dh');
+const zi = document.getElementById('zi');
+const bo = document.getElementById('bo');
+const bs = document.getElementById('bs');
+const msl = document.getElementById('msl');
+const ib = document.getElementById('ib');
+const modal = document.getElementById('modal');
+const mx = document.getElementById('mx');
+
+function init(){
+  resize();
+  centerView();
+  updateUI();
+  loadVisible();
+  window.addEventListener('resize', ()=>{ resize(); render(); });
+  sl.addEventListener('input', ()=>{ scaleIdx=+sl.value; updateUI(); loadVisible(); });
+  bo.addEventListener('click', ()=>setMode('optical'));
+  bs.addEventListener('click', ()=>setMode('sar'));
+  ib.addEventListener('click', ()=>modal.classList.remove('h'));
+  mx.addEventListener('click', ()=>modal.classList.add('h'));
+  modal.addEventListener('click', e=>{ if(e.target===modal) modal.classList.add('h'); });
+  document.querySelectorAll('.tk').forEach(t=>{
+    t.addEventListener('click', ()=>{ sl.value=t.dataset.i; scaleIdx=+t.dataset.i; updateUI(); loadVisible(); });
+  });
+  vp.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  vp.addEventListener('touchstart', onTDown, {passive:false});
+  window.addEventListener('touchmove', onTMove, {passive:false});
+  window.addEventListener('touchend', onUp);
+  vp.addEventListener('wheel', onWheel, {passive:false});
+  window.addEventListener('keydown', onKey);
+}
+
+function resize(){
+  const dpr = devicePixelRatio||1;
+  const r = vp.getBoundingClientRect();
+  cv.width = r.width*dpr; cv.height = r.height*dpr;
+  cv.style.width = r.width+'px'; cv.style.height = r.height+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function centerView(){
+  const L = CONFIG[mode];
+  const r = vp.getBoundingClientRect();
+  zoom = Math.min(r.width / L.base_width, r.height / L.base_height) * 0.9;
+  panX = (r.width - L.base_width * zoom) / 2;
+  panY = (r.height - L.base_height * zoom) / 2;
+}
+
+function setMode(m){
+  if(m===mode) return;
+  mode=m;
+  bo.classList.toggle('on', m==='optical');
+  bs.classList.toggle('on', m==='sar');
+  msl.classList.toggle('sar', m==='sar');
+  sl.classList.toggle('sar', m==='sar');
+  rv.classList.toggle('sar', m==='sar');
+  document.querySelectorAll('.tk').forEach(t=>t.classList.toggle('sar', m==='sar'));
+  centerView();
+  updateUI();
+  loadVisible();
+}
+
+function updateUI(){
+  const sk = SKEYS[scaleIdx];
+  const L = CONFIG[mode];
+  const si = L.scales[sk];
+  rv.textContent = sk;
+  iSrc.textContent = L.source.provider;
+  iGsd.textContent = L.native_resolution_m+' m';
+  iEff.textContent = si.effective_resolution_m.toFixed(3)+' m';
+  // Coverage
+  const cov = (L.base_width * L.native_resolution_m / 1000).toFixed(2);
+  iCov.textContent = cov+' × '+cov+' km';
+  document.querySelectorAll('.tk').forEach((t,i)=>t.classList.toggle('on', i===scaleIdx));
+  zi.textContent = Math.round(zoom*100)+'%';
+}
+
+// ===== Tile loading =====
+function tileUrl(m, sk, x, y){ return 'tiles/'+m+'/'+sk+'/'+x+'/'+y+'.jpg'; }
+
+function loadTile(url){
+  if(cache[url]) return cache[url];
+  const p = new Promise((res,rej)=>{
+    const img = new Image();
+    img.onload = ()=>{ cache[url]=img; res(img); render(); };
+    img.onerror = ()=>rej();
+    img.src = url;
+  });
+  cache[url] = null; // mark loading
+  p.catch(()=>{});
+  return null;
+}
+
+function loadVisible(){
+  const sk = SKEYS[scaleIdx];
+  const L = CONFIG[mode];
+  const si = L.scales[sk];
+  const ts = L.tile_size * zoom;
+  const r = vp.getBoundingClientRect();
+
+  // Determine visible tile range
+  const x0 = Math.max(0, Math.floor(-panX / ts));
+  const y0 = Math.max(0, Math.floor(-panY / ts));
+  const x1 = Math.min(si.cols-1, Math.floor((-panX + r.width) / ts));
+  const y1 = Math.min(si.rows-1, Math.floor((-panY + r.height) / ts));
+
+  for(let x=x0; x<=x1; x++){
+    for(let y=y0; y<=y1; y++){
+      const url = tileUrl(mode, sk, x, y);
+      if(!cache[url]) loadTile(url);
+    }
+  }
+  render();
+}
+
+function render(){
+  const r = vp.getBoundingClientRect();
+  ctx.clearRect(0,0,r.width,r.height);
+
+  const sk = SKEYS[scaleIdx];
+  const L = CONFIG[mode];
+  const si = L.scales[sk];
+  const ts = L.tile_size;
+  const tsZ = ts * zoom;
+
+  ctx.imageSmoothingEnabled = si.factor >= 1.0 && zoom >= 1.0;
+
+  const x0 = Math.max(0, Math.floor(-panX / tsZ));
+  const y0 = Math.max(0, Math.floor(-panY / tsZ));
+  const x1 = Math.min(si.cols-1, Math.floor((-panX + r.width) / tsZ));
+  const y1 = Math.min(si.rows-1, Math.floor((-panY + r.height) / tsZ));
+
+  for(let x=x0; x<=x1; x++){
+    for(let y=y0; y<=y1; y++){
+      const url = tileUrl(mode, sk, x, y);
+      const img = cache[url];
+      if(!img) continue;
+      ctx.drawImage(img, panX + x*tsZ, panY + y*tsZ, tsZ, tsZ);
+    }
+  }
+
+  // Border
+  ctx.strokeStyle = mode==='sar' ? 'rgba(34,211,238,.15)' : 'rgba(99,102,241,.15)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panX, panY, si.cols*tsZ, si.rows*tsZ);
+
+  zi.textContent = Math.round(zoom*100)+'%';
+}
+
+// ===== Pan =====
+function onDown(e){ dragging=true; dx0=e.clientX; dy0=e.clientY; px0=panX; py0=panY; hideHint(); }
+function onMove(e){ if(!dragging)return; panX=px0+(e.clientX-dx0); panY=py0+(e.clientY-dy0); render(); loadVisible(); }
+function onUp(){ dragging=false; }
+function onTDown(e){ if(e.touches.length!==1)return; e.preventDefault(); const t=e.touches[0]; dragging=true; dx0=t.clientX; dy0=t.clientY; px0=panX; py0=panY; hideHint(); }
+function onTMove(e){ if(!dragging||e.touches.length!==1)return; e.preventDefault(); const t=e.touches[0]; panX=px0+(t.clientX-dx0); panY=py0+(t.clientY-dy0); render(); loadVisible(); }
+function hideHint(){ if(hintShown){ dh.classList.add('h'); hintShown=false; } }
+
+// ===== Zoom =====
+function onWheel(e){
+  e.preventDefault();
+  const r = vp.getBoundingClientRect();
+  const mx = e.clientX - r.left;
+  const my = e.clientY - r.top;
+
+  const factor = e.deltaY < 0 ? 1.15 : 1/1.15;
+  const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * factor));
+
+  // Zoom towards cursor
+  panX = mx - (mx - panX) * (newZoom / zoom);
+  panY = my - (my - panY) * (newZoom / zoom);
+  zoom = newZoom;
+
+  render();
+  loadVisible();
+  hideHint();
+}
+
+// ===== Keyboard =====
+function onKey(e){
+  const S=80;
+  switch(e.key){
+    case 'ArrowLeft': panX+=S; render(); loadVisible(); e.preventDefault(); break;
+    case 'ArrowRight': panX-=S; render(); loadVisible(); e.preventDefault(); break;
+    case 'ArrowUp': panY+=S; render(); loadVisible(); e.preventDefault(); break;
+    case 'ArrowDown': panY-=S; render(); loadVisible(); e.preventDefault(); break;
+    case '=': case '+': zoom=Math.min(MAX_ZOOM,zoom*1.2); render(); loadVisible(); break;
+    case '-': zoom=Math.max(MIN_ZOOM,zoom/1.2); render(); loadVisible(); break;
+    case '1': sl.value=0; scaleIdx=0; updateUI(); loadVisible(); break;
+    case '2': sl.value=1; scaleIdx=1; updateUI(); loadVisible(); break;
+    case '3': sl.value=2; scaleIdx=2; updateUI(); loadVisible(); break;
+    case '4': sl.value=3; scaleIdx=3; updateUI(); loadVisible(); break;
+    case '5': sl.value=4; scaleIdx=4; updateUI(); loadVisible(); break;
+    case '6': sl.value=5; scaleIdx=5; updateUI(); loadVisible(); break;
+    case 'o': setMode('optical'); break;
+    case 's': setMode('sar'); break;
+    case 'Escape': modal.classList.add('h'); break;
+    case '0': centerView(); updateUI(); loadVisible(); break;
+  }
+}
+
+init();
+})();
+</script>
+</body>
+</html>

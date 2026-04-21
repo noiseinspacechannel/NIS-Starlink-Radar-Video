@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polarization Reflection Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #121215;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* Top Labels for the Side-By-Side Views */
+        #labels {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 80px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .label-box {
+            background: rgba(20, 20, 25, 0.75);
+            padding: 15px 30px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            text-align: center;
+            color: #fff;
+            font-size: 1.15rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .c-rcp {
+            color: #33ff66;
+            text-shadow: 0 0 8px rgba(51, 255, 102, 0.5);
+        }
+
+        .c-lcp {
+            color: #e64dff;
+            text-shadow: 0 0 8px rgba(230, 77, 255, 0.5);
+        }
+
+        .arrow {
+            color: #888;
+            font-size: 1.4rem;
+        }
+
+        /* Controls */
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            z-index: 10;
+            background: rgba(20, 20, 25, 0.85);
+            padding: 12px 24px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(8px);
+            transition: opacity 0.3s;
+        }
+
+        button {
+            background: rgba(50, 50, 60, 0.9);
+            color: #ddd;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.6px;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background: rgba(80, 80, 100, 1.0);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+
+        .separator {
+            width: 1px;
+            height: 28px;
+            background: rgba(255, 255, 255, 0.15);
+            margin: 0 4px;
+        }
+
+        /* Full Screen Mode Styles */
+        body.fullscreen-mode {
+            cursor: none;
+        }
+
+        body.fullscreen-mode #controls,
+        body.fullscreen-mode #labels {
+            display: none !important;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="labels">
+        <div class="label-box">
+            <span>Incident <span class="c-rcp">RCP</span></span>
+            <span class="arrow">&rarr;</span>
+            <span>Reflected <span class="c-lcp">LCP</span></span>
+        </div>
+        <div class="label-box">
+            <span>Incident <span class="c-lcp">LCP</span></span>
+            <span class="arrow">&rarr;</span>
+            <span>Reflected <span class="c-rcp">RCP</span></span>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button id="btn-replay">↺ Restart Wave</button>
+        <div class="separator"></div>
+        <button id="btn-fullscreen">⛶ Fullscreen</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // ─── Polarization Configs ──────────────────────────────────
+        const POLARIZATIONS = {
+            RCP: { color: new THREE.Color(0.2, 1.0, 0.4), glowColor: new THREE.Color(0.05, 0.6, 0.15) },
+            LCP: { color: new THREE.Color(0.9, 0.3, 1.0), glowColor: new THREE.Color(0.5, 0.1, 0.7) }
+        };
+
+        // ─── Scene Setup ───────────────────────────────────────────
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x121215);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 300);
+        camera.position.set(0, 25, 55); // Centered overview for viewing both setups seamlessly 
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.06;
+        controls.maxPolarAngle = Math.PI / 2 + 0.1; // Restricts camera below metal surface
+        controls.minDistance = 10;
+        controls.maxDistance = 150;
+        controls.target.set(0, 5, 0);
+
+        // ─── Post Processing (Bloom) ──────────────────────────────
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        const bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            1.4, 0.6, 0.15
+        );
+        composer.addPass(bloomPass);
+
+        // ─── Metal Surface & Environment ──────────────────────────
+        const mirrorGeo = new THREE.PlaneGeometry(120, 60);
+        const mirrorMat = new THREE.MeshStandardMaterial({
+            color: 0x333344,
+            metalness: 0.95,
+            roughness: 0.15,
+            transparent: true,
+            opacity: 0.65,
+            side: THREE.DoubleSide
+        });
+        const mirror = new THREE.Mesh(mirrorGeo, mirrorMat);
+        mirror.rotation.x = -Math.PI / 2; // Lie flat on X-Z plane (Normal is Y-axis)
+        scene.add(mirror);
+
+        const grid = new THREE.GridHelper(120, 60, 0x444444, 0x222222);
+        grid.position.y = 0.02; // Prevent Z-fighting
+        scene.add(grid);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+        const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.0);
+        dirLight1.position.set(20, 40, 20);
+        scene.add(dirLight1);
+
+        // ─── Wave Math & Geometry ─────────────────────────────────
+        const WAVE_SEGMENTS = 3000;
+        const L = 20;                  // Physical length of each wave branch
+        const WAVE_FREQ = 4.0;         // Wavelength cycles over Length
+        const k = 2 * Math.PI * WAVE_FREQ / L;
+        const WAVE_AMP = 1.2;
+        const WAVE_SPEED = 6.0;        // Propagation front speed
+
+        // Angle of Incidence: 30 degrees to the normal (Y-axis)
+        const THETA = 30 * Math.PI / 180;
+        const sinT = Math.sin(THETA);
+        const cosT = Math.cos(THETA);
+
+        // Progression wave vectors
+        const k_in = new THREE.Vector3(sinT, -cosT, 0);
+        const k_out = new THREE.Vector3(sinT, cosT, 0);
+
+        // Orthogonal Basis Vectors defining the plane of polarization
+        const e1_in = new THREE.Vector3(0, 0, 1);
+        const e2_in = new THREE.Vector3(-cosT, -sinT, 0);
+
+        const e1_out = new THREE.Vector3(0, 0, 1);
+        const e2_out = new THREE.Vector3(cosT, -sinT, 0);
+
+        function createWaveSetup(xOffset, isRCPIncident) {
+            const group = new THREE.Group();
+            group.position.x = xOffset;
+
+            // Preserve assigned target colors mapped to types
+            const incColor = isRCPIncident ? POLARIZATIONS.RCP.color : POLARIZATIONS.LCP.color;
+            const incGlow = isRCPIncident ? POLARIZATIONS.RCP.glowColor : POLARIZATIONS.LCP.glowColor;
+
+            // Flipped colors post-reflection
+            const refColor = isRCPIncident ? POLARIZATIONS.LCP.color : POLARIZATIONS.RCP.color;
+            const refGlow = isRCPIncident ? POLARIZATIONS.LCP.glowColor : POLARIZATIONS.RCP.glowColor;
+
+            // Materials
+            const incMat = new THREE.LineBasicMaterial({ color: incColor, linewidth: 2 });
+            const incGlowMat = new THREE.LineBasicMaterial({ color: incGlow, transparent: true, opacity: 0.6, linewidth: 2 });
+            const refMat = new THREE.LineBasicMaterial({ color: refColor, linewidth: 2 });
+            const refGlowMat = new THREE.LineBasicMaterial({ color: refGlow, transparent: true, opacity: 0.6, linewidth: 2 });
+
+            const incGeo = new THREE.BufferGeometry();
+            incGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((WAVE_SEGMENTS + 1) * 3), 3));
+            const refGeo = new THREE.BufferGeometry();
+            refGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((WAVE_SEGMENTS + 1) * 3), 3));
+
+            const incLine = new THREE.Line(incGeo, incMat);
+            const incGlowLine = new THREE.Line(incGeo.clone(), incGlowMat);
+            const refLine = new THREE.Line(refGeo, refMat);
+            const refGlowLine = new THREE.Line(refGeo.clone(), refGlowMat);
+
+            group.add(incLine, incGlowLine, refLine, refGlowLine);
+
+            // Subtle trajectory guiding lines
+            const guideMat = new THREE.LineDashedMaterial({ color: 0x666666, dashSize: 0.5, gapSize: 0.5, transparent: true, opacity: 0.4 });
+            const pathInc = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-L * k_in.x, -L * k_in.y, -L * k_in.z), new THREE.Vector3(0, 0, 0)
+            ]), guideMat);
+            pathInc.computeLineDistances();
+            group.add(pathInc);
+
+            const pathRef = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0), new THREE.Vector3(L * k_out.x, L * k_out.y, L * k_out.z)
+            ]), guideMat);
+            pathRef.computeLineDistances();
+            group.add(pathRef);
+
+            // Dashed Surface Normal Line
+            const normalLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 10, 0)
+            ]), guideMat);
+            normalLine.computeLineDistances();
+            group.add(normalLine);
+
+            // Tiny dots mapping the exact front of the advancing wave
+            const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const frontDotIn = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), dotMat);
+            const frontDotOut = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 16), dotMat);
+            group.add(frontDotIn, frontDotOut);
+
+            scene.add(group);
+
+            return {
+                update: (time) => {
+                    const front_s = -L + time * WAVE_SPEED;
+                    const phase_time = k * WAVE_SPEED * time;
+
+                    const incPos = incLine.geometry.attributes.position.array;
+                    const incGlowPos = incGlowLine.geometry.attributes.position.array;
+                    const refPos = refLine.geometry.attributes.position.array;
+                    const refGlowPos = refGlowLine.geometry.attributes.position.array;
+
+                    // 1. INCIDENT CONTINUOUS WAVEFRONT ---------------------------
+                    for (let i = 0; i <= WAVE_SEGMENTS; i++) {
+                        const s_in = (i / WAVE_SEGMENTS) * L - L; // Travel -L to 0
+                        const diff = front_s - s_in;
+
+                        let amp_in = 0;
+                        if (diff > 0) {
+                            amp_in = WAVE_AMP * Math.min(1.0, diff / 1.5); // Smooth close the tip back to 0
+                        }
+
+                        // Adjusting for K*L keeps the physical front tip phase permanently stable 
+                        const phase_i = k * s_in - phase_time + k * L;
+
+                        let E1_i = (isRCPIncident ? Math.cos(phase_i) : -Math.cos(phase_i)) * amp_in;
+                        let E2_i = Math.sin(phase_i) * amp_in;
+
+                        let ex_i = E1_i * e1_in.x + E2_i * e2_in.x;
+                        let ey_i = E1_i * e1_in.y + E2_i * e2_in.y;
+                        let ez_i = E1_i * e1_in.z + E2_i * e2_in.z;
+
+                        let idx = i * 3;
+                        let bx = s_in * k_in.x, by = s_in * k_in.y, bz = s_in * k_in.z;
+
+                        incPos[idx] = bx + ex_i;
+                        incPos[idx + 1] = by + ey_i;
+                        incPos[idx + 2] = bz + ez_i;
+
+                        incGlowPos[idx] = bx + ex_i * 1.08;
+                        incGlowPos[idx + 1] = by + ey_i * 1.08;
+                        incGlowPos[idx + 2] = bz + ez_i * 1.08;
+                    }
+
+                    let count_in = Math.ceil((front_s - (-L)) / L * WAVE_SEGMENTS) + 1;
+                    count_in = Math.max(0, Math.min(WAVE_SEGMENTS + 1, count_in));
+                    incLine.geometry.setDrawRange(0, count_in);
+                    incGlowLine.geometry.setDrawRange(0, count_in);
+
+                    // 2. REFLECTED CONTINUOUS WAVEFRONT --------------------------
+                    for (let i = 0; i <= WAVE_SEGMENTS; i++) {
+                        const s_out = (i / WAVE_SEGMENTS) * L; // Travel 0 to L
+                        const diff = front_s - s_out;
+
+                        let amp_out = 0;
+                        if (diff > 0) {
+                            amp_out = WAVE_AMP * Math.min(1.0, diff / 1.5);
+                        }
+
+                        const phase_r = k * s_out - phase_time + k * L;
+
+                        // Physics enforcement mapping perfect electric conductor boundary conditions: E_rx = -E_ix and E_rz = E_iz
+                        let E1_r = (!isRCPIncident ? Math.cos(phase_r) : -Math.cos(phase_r)) * amp_out;
+                        let E2_r = Math.sin(phase_r) * amp_out;
+
+                        let ex_r = E1_r * e1_out.x + E2_r * e2_out.x;
+                        let ey_r = E1_r * e1_out.y + E2_r * e2_out.y;
+                        let ez_r = E1_r * e1_out.z + E2_r * e2_out.z;
+
+                        let idx = i * 3;
+                        let bx = s_out * k_out.x, by = s_out * k_out.y, bz = s_out * k_out.z;
+
+                        refPos[idx] = bx + ex_r;
+                        refPos[idx + 1] = by + ey_r;
+                        refPos[idx + 2] = bz + ez_r;
+
+                        refGlowPos[idx] = bx + ex_r * 1.08;
+                        refGlowPos[idx + 1] = by + ey_r * 1.08;
+                        refGlowPos[idx + 2] = bz + ez_r * 1.08;
+                    }
+
+                    let count_out = Math.ceil(front_s / L * WAVE_SEGMENTS) + 1;
+                    count_out = Math.max(0, Math.min(WAVE_SEGMENTS + 1, count_out));
+                    refLine.geometry.setDrawRange(0, count_out);
+                    refGlowLine.geometry.setDrawRange(0, count_out);
+
+                    // Move Wavefront Dots
+                    if (front_s >= -L && front_s <= 0) {
+                        frontDotIn.visible = true;
+                        frontDotIn.position.set(front_s * k_in.x, front_s * k_in.y, front_s * k_in.z);
+                    } else { frontDotIn.visible = false; }
+
+                    if (front_s >= 0 && front_s <= L) {
+                        frontDotOut.visible = true;
+                        frontDotOut.position.set(front_s * k_out.x, front_s * k_out.y, front_s * k_out.z);
+                    } else { frontDotOut.visible = false; }
+
+                    incLine.geometry.attributes.position.needsUpdate = true;
+                    incGlowLine.geometry.attributes.position.needsUpdate = true;
+                    refLine.geometry.attributes.position.needsUpdate = true;
+                    refGlowLine.geometry.attributes.position.needsUpdate = true;
+                }
+            };
+        }
+
+        // Initialize Side-by-Side simultaneous systems spaced out
+        const systems = [
+            createWaveSetup(-15, true), // Left Side: Incident RCP
+            createWaveSetup(15, false)  // Right Side: Incident LCP
+        ];
+
+        // ─── Main Animation Loop ──────────────────────────────────
+        let waveTime = 0;
+        let lastTime = performance.now();
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+            const dt = Math.min((time - lastTime) * 0.001, 0.1);
+            lastTime = time;
+
+            waveTime += dt;
+
+            controls.update();
+            systems.forEach(sys => sys.update(waveTime));
+
+            composer.render();
+        }
+
+        animate(performance.now());
+
+        // ─── UI / Event Bindings ──────────────────────────────────
+        document.getElementById('btn-replay').addEventListener('click', () => {
+            waveTime = 0; // Starts the advancing continuous wave perfectly back at its source emission
+        });
+
+        document.getElementById('btn-fullscreen').addEventListener('click', () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else if (document.exitFullscreen) document.exitFullscreen();
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) document.body.classList.add('fullscreen-mode');
+            else document.body.classList.remove('fullscreen-mode');
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+
+</html>

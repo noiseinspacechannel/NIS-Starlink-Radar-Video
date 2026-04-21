@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starlink Beam Coverage</title>
+    <style>
+        body{margin:0;overflow:hidden;background:#171717;font-family:'Segoe UI',Tahoma,sans-serif;color:#aaccff}
+        #cv{width:100vw;height:100vh}
+        #bf{position:absolute;top:10px;right:10px;padding:8px 14px;background:rgba(10,15,30,0.9);border:1px solid #4466aa;border-radius:6px;color:#aaccff;cursor:pointer;font-family:inherit;font-size:12px;z-index:1000}
+        #bf:hover{background:#223355;color:#fff}
+        #ui{position:absolute;top:10px;left:10px;width:290px;max-height:calc(100vh - 20px);overflow-y:auto;background:rgba(10,15,30,0.93);padding:12px;border:1px solid #4466aa;border-radius:10px;backdrop-filter:blur(8px);box-shadow:0 0 20px rgba(0,0,0,0.6);z-index:100}
+        #ui::-webkit-scrollbar{width:4px}#ui::-webkit-scrollbar-thumb{background:#4466aa;border-radius:2px}
+        h1{margin:0 0 6px;font-size:15px;color:#fff;border-bottom:1px solid #4466aa;padding-bottom:5px}
+        h2{font-size:10px;color:#88aadd;margin:8px 0 2px;text-transform:uppercase;letter-spacing:1px}
+        .cg{margin-bottom:6px;background:rgba(255,255,255,0.05);padding:6px;border-radius:5px}
+        label{display:block;font-size:10px;margin-bottom:2px;color:#ccc}
+        input[type=range]{width:100%;margin-bottom:2px;cursor:pointer}
+        .vd{float:right;color:#44ffaa;font-weight:bold}
+        .mg{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px}
+        .mb{background:rgba(0,0,0,0.3);padding:5px;border-radius:4px;text-align:center;border:1px solid #334466}
+        .mv{font-size:14px;font-weight:bold;display:block;margin-top:1px}
+        .ml{font-size:8px;color:#88aadd}
+        .good{color:#44ff44}.blue{color:#3399ff}.warn{color:#ffff44}.purple{color:#aa66ee}.red{color:#ff4444}
+        .chk{display:flex;gap:10px;margin-top:6px;font-size:10px;flex-wrap:wrap}
+        .chk label{display:flex;align-items:center;gap:3px;cursor:pointer}
+        #leg{font-size:9px;margin-top:6px;color:#999}.li{margin-bottom:2px}
+        .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:middle}
+        .num-input{width:70px;background:#111;color:#44ffaa;border:1px solid #4466aa;border-radius:3px;padding:2px 4px;font-weight:bold;float:right;font-size:11px}
+        .note{font-size:9px;color:#667;font-style:italic;margin-top:2px}
+    </style>
+</head>
+<body>
+    <button id="bf">Fullscreen</button>
+    <div id="ui">
+        <h1>Starlink — Beam Coverage</h1>
+        <div class="cg">
+            <h2>Constellation</h2>
+            <label>Satellites:<input type="number" id="i-ns" min="1" max="15000" step="1" value="1" class="num-input"></label>
+            <div class="note" id="shell-note" style="display:none">Distributed across Starlink orbital shells</div>
+        </div>
+        <div class="cg" id="sat-section">
+            <h2>Satellite</h2>
+            <label>Altitude (km): <span id="v-alt" class="vd">550</span>
+                <input type="range" id="i-alt" min="300" max="1200" step="10" value="550"></label>
+        </div>
+        <div class="cg" id="beam-section">
+            <h2>Beams</h2>
+            <label>Number of Beams:<input type="number" id="i-nb" min="1" max="10000" step="1" value="64" class="num-input"></label>
+            <label>Gain (dBi): <span id="v-g" class="vd">38 dBi</span>
+                <input type="range" id="i-g" min="25" max="60" step="1" value="38"></label>
+        </div>
+        <div class="cg">
+            <h2>SAR Inclusion Zone</h2>
+            <div class="chk" style="margin-top:0;margin-bottom:4px">
+                <label><input type="checkbox" id="c-incl" checked> Enable</label>
+            </div>
+            <label>Min Grazing (°): <span id="v-imin" class="vd">30°</span>
+                <input type="range" id="i-imin" min="0" max="89" step="1" value="30"></label>
+            <label>Max Grazing (°): <span id="v-imax" class="vd">60°</span>
+                <input type="range" id="i-imax" min="1" max="90" step="1" value="60"></label>
+        </div>
+        <div class="cg" id="orbit-section" style="display:none">
+            <h2>Orbit Phasing</h2>
+            <label>Walker Phase: <span id="v-wph" class="vd">1.00</span>
+                <input type="range" id="i-wph" min="0" max="100" step="1" value="100"></label>
+            <label>Time Offset (°): <span id="v-toff" class="vd">0°</span>
+                <input type="range" id="i-toff" min="0" max="360" step="1" value="0"></label>
+        </div>
+        <div class="chk">
+            <label><input type="checkbox" id="c-rc"> Random Colors</label>
+        </div>
+        <h2>Coverage Info</h2>
+        <div class="mg">
+            <div class="mb"><span class="ml">Included Beams</span><span id="m-bm" class="mv good">0</span></div>
+            <div class="mb"><span class="ml">Beam ∅ (km)</span><span id="m-bw" class="mv blue">--</span></div>
+            <div class="mb"><span class="ml">Coverage ∅ (km)</span><span id="m-cov" class="mv blue">--</span></div>
+            <div class="mb"><span class="ml">Excluded</span><span id="m-excl" class="mv red">0</span></div>
+            <div class="mb"><span class="ml">Satellites</span><span id="m-sat" class="mv purple">1</span></div>
+            <div class="mb"><span class="ml">Altitude (km)</span><span id="m-alt" class="mv purple">550</span></div>
+        </div>
+        <div id="leg">
+            <div class="li"><span class="dot" style="background:#33aaff"></span>SAR Inclusion (Active)</div>
+            <div class="li"><span class="dot" style="background:#1166aa"></span>Ground Footprint</div>
+            <div class="li"><span class="dot" style="background:#cccccc"></span>Satellite</div>
+        </div>
+    </div>
+    <div id="cv"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+    const D=Math.PI/180, ER_KM=6371, SC=0.01, ER=ER_KM*SC;
+    const MXB=10000, MXS=15000, MXF=500000;
+
+    let P={alt:550, nBeams:64, gain:38, randomColors:false,
+            nSats:1, showIncl:true, inclMin:30, inclMax:60,
+            walkerPhase:1.0, timeOffset:0};
+
+    const satLat=39, satLon=-105;
+    const SHELLS=[
+        {alt:550,inc:53.0,weight:4,pRef:72,sRef:22},
+        {alt:540,inc:53.2,weight:4,pRef:72,sRef:22},
+        {alt:570,inc:70.0,weight:2,pRef:36,sRef:20},
+        {alt:560,inc:97.6,weight:1,pRef:6, sRef:58},
+        {alt:340,inc:53.0,weight:2,pRef:48,sRef:15},
+    ];
+
+    // === SCENE ===
+    const sc=new THREE.Scene(); sc.fog=new THREE.FogExp2(0x171717,0.0008);
+    const cam=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,5000);
+    cam.position.set(0,90,60);
+    const rn=new THREE.WebGLRenderer({antialias:true,logarithmicDepthBuffer:true});
+    rn.setSize(innerWidth,innerHeight); rn.setPixelRatio(Math.min(devicePixelRatio,2)); rn.setClearColor(0x171717);
+    document.getElementById('cv').appendChild(rn.domElement);
+    const oc=new THREE.OrbitControls(cam,rn.domElement);
+    oc.enablePan=false; oc.minDistance=0.5; oc.maxDistance=500;
+    sc.add(new THREE.DirectionalLight(0xffffff,1.5).translateX(200).translateY(50).translateZ(100));
+    sc.add(new THREE.AmbientLight(0x404060));
+
+    // Stars
+    {const g=new THREE.BufferGeometry(),v=[];
+    for(let i=0;i<6000;i++)v.push((Math.random()-.5)*3e3,(Math.random()-.5)*3e3,(Math.random()-.5)*3e3);
+    g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
+    sc.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.5})));}
+
+    // Earth
+    const earth=new THREE.Mesh(new THREE.SphereGeometry(ER,64,64),
+        new THREE.MeshPhongMaterial({color:0x112244,emissive:0x000510,specular:0x050505,shininess:5}));
+    sc.add(earth);
+    new THREE.TextureLoader().load('https://upload.wikimedia.org/wikipedia/commons/8/83/Equirectangular_projection_SW.jpg',
+        t=>{earth.material.map=t;earth.material.color.setHex(0xaaaaaa);earth.material.needsUpdate=true});
+    sc.add(new THREE.Mesh(new THREE.SphereGeometry(ER+.15,64,64),
+        new THREE.MeshBasicMaterial({color:0x4466aa,wireframe:true,transparent:true,opacity:.07})));
+
+    // === UTIL ===
+    function llv(la,lo,r){const p=(90-la)*D,t=(lo+180)*D;
+        return new THREE.Vector3(-(r*Math.sin(p)*Math.cos(t)),r*Math.cos(p),r*Math.sin(p)*Math.sin(t));}
+    function bHA(db){return Math.sqrt(26000/Math.pow(10,db/10))*D;}
+
+    // Convert grazing angle (deg) to off-nadir angle (rad) for given orbital radius
+    function grazToOffNadir(grazDeg,satR){
+        const sinT=(ER/satR)*Math.cos(grazDeg*D);
+        return(sinT>=0&&sinT<=1)?Math.asin(sinT):-1;
+    }
+
+    // === PRIMARY SATELLITE MODEL ===
+    let satPos=new THREE.Vector3();
+    const satGroup=new THREE.Group();
+    satGroup.add(new THREE.Mesh(new THREE.BoxGeometry(.3,.06,.15),new THREE.MeshPhongMaterial({color:0xcccccc,emissive:0x222222})));
+    const pM=new THREE.MeshPhongMaterial({color:0x224488,emissive:0x112244});
+    const pL=new THREE.Mesh(new THREE.BoxGeometry(.5,.01,.12),pM);pL.position.set(-.4,0,0);satGroup.add(pL);
+    const pR=new THREE.Mesh(new THREE.BoxGeometry(.5,.01,.12),pM);pR.position.set(.4,0,0);satGroup.add(pR);
+    sc.add(satGroup);
+
+    function updateSatPos(){satPos=llv(satLat,satLon,ER+P.alt*SC);satGroup.position.copy(satPos);satGroup.lookAt(0,0,0);}
+
+    // === MULTI-SAT INSTANCED MODELS ===
+    const satIM=new THREE.InstancedMesh(new THREE.BoxGeometry(0.08,0.016,0.04),
+        new THREE.MeshPhongMaterial({color:0xcccccc,emissive:0x222222}),MXS);
+    satIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);satIM.visible=false;satIM.frustumCulled=false;sc.add(satIM);
+    const satDum=new THREE.Object3D();
+
+    // === BEAM CONES (single-sat only) ===
+    const bGeo=new THREE.ConeGeometry(1,1,16,1,true);
+    bGeo.translate(0,-.5,0);bGeo.rotateX(-Math.PI/2);
+    const bMat=new THREE.MeshBasicMaterial({color:0x33aaff,transparent:true,opacity:.04,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending});
+    const bIM=new THREE.InstancedMesh(bGeo,bMat,MXB);
+    bIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);bIM.frustumCulled=false;sc.add(bIM);
+
+    // === GROUND FOOTPRINTS (up to 500K for full multi-sat) ===
+    const fpGeo=new THREE.CircleGeometry(1,24);
+    const fpMat=new THREE.MeshBasicMaterial({color:0x1166aa,transparent:true,opacity:.12,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending});
+    // === INCLUSION ZONE RINGS ===
+    const CHUNK_SIZE = 50000;
+    const fpIM_chunks = [];
+    getFpChunk(0);
+    function getFpChunk(ci){
+        while(fpIM_chunks.length <= ci){
+            const chk=new THREE.InstancedMesh(fpGeo,fpMat,CHUNK_SIZE);
+            chk.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            chk.frustumCulled=false;sc.add(chk);fpIM_chunks.push(chk);
+        }
+        return fpIM_chunks[ci];
+    }
+    const hideM=new THREE.Matrix4().makeScale(0,0,0);
+    function createRingLine(color){
+        const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(129*3),3));
+        return new THREE.Line(g,new THREE.LineBasicMaterial({color,transparent:true,opacity:0.7,depthWrite:false}));}
+    const inclRingIn=createRingLine(0x33aaff),inclRingOut=createRingLine(0x33aaff);
+    sc.add(inclRingIn);sc.add(inclRingOut);
+
+    function updateRing(rl,grazDeg,sP){
+        const pos=rl.geometry.attributes.position,satR=sP.length(),psi=grazDeg*D;
+        const sinT=(ER/satR)*Math.cos(psi);
+        if(sinT>1||sinT<0){rl.visible=false;return;}
+        const theta=Math.asin(sinT),gamma=Math.PI/2-theta-psi;
+        if(gamma<=0){rl.visible=false;return;}
+        const up=sP.clone().normalize();
+        let east=new THREE.Vector3(0,1,0).cross(up);
+        if(east.length()<0.001)east=new THREE.Vector3(1,0,0).cross(up);
+        east.normalize();
+        const north=up.clone().cross(east).normalize();
+        for(let i=0;i<=128;i++){const phi=(i/128)*Math.PI*2;const sg=Math.sin(gamma),cg=Math.cos(gamma),cp=Math.cos(phi),sp=Math.sin(phi);
+            const r=ER+0.08;pos.setXYZ(i,(cg*up.x+sg*(cp*north.x+sp*east.x))*r,(cg*up.y+sg*(cp*north.y+sp*east.y))*r,(cg*up.z+sg*(cp*north.z+sp*east.z))*r);}
+        pos.needsUpdate=true;rl.visible=true;}
+
+    const bDum=new THREE.Object3D(),fpDum=new THREE.Object3D();
+
+    // Random colors
+    const rndColors=new Float32Array(MXF*3);
+    function genRC(){for(let i=0;i<MXF;i++){const h=(i*137.508)%360;const c=new THREE.Color().setHSL(h/360,0.8,0.55);rndColors[i*3]=c.r;rndColors[i*3+1]=c.g;rndColors[i*3+2]=c.b;}}
+    genRC();
+
+    // === WALKER CONSTELLATION DISTRIBUTION ===
+    // Groups shells by inclination and offsets their RAANs to prevent pairing
+    function distributeSatellites(nTotal){
+        const tw=SHELLS.reduce((s,sh)=>s+sh.weight,0);
+
+        // Pre-compute per-shell config
+        const configs=SHELLS.map((shell,idx)=>{
+            const nIn=Math.max(1,Math.round(nTotal*shell.weight/tw));
+            const ratio=shell.pRef/shell.sRef;
+            const nP=Math.max(1,Math.round(Math.sqrt(nIn*ratio)));
+            const nS=Math.max(1,Math.round(nIn/nP));
+            return{...shell,nIn,nP,nS,idx,raanOff:0};
+        });
+
+        // Group by similar inclination (within 5°) and interleave RAANs
+        const incGroups={};
+        for(const cfg of configs){
+            const key=Math.round(cfg.inc/5);
+            if(!incGroups[key])incGroups[key]=[];
+            incGroups[key].push(cfg);
+        }
+        for(const key in incGroups){
+            const grp=incGroups[key];
+            for(let i=0;i<grp.length;i++){
+                // Offset each shell's RAAN by i/grpLen of one plane spacing
+                // This interleaves orbital planes of shells at similar inclinations
+                grp[i].raanOff=i*(2*Math.PI/(grp[i].nP*grp.length));
+            }
+        }
+
+        const sats=[];
+        for(const cfg of configs){
+            if(sats.length>=nTotal)break;
+            const r=ER+cfg.alt*SC,incR=cfg.inc*D;
+            const T=cfg.nP*cfg.nS;
+            for(let p=0;p<cfg.nP;p++){
+                const raan=(p/cfg.nP)*2*Math.PI+cfg.raanOff;
+                const cosR=Math.cos(raan),sinR=Math.sin(raan),cosI=Math.cos(incR),sinI=Math.sin(incR);
+                for(let s=0;s<cfg.nS;s++){
+                    if(sats.length>=nTotal)break;
+                    const F=P.walkerPhase*cfg.nS;
+                    const u=(s/cfg.nS)*2*Math.PI+(F*p/T)*2*Math.PI+P.timeOffset*D;
+                    const cosU=Math.cos(u),sinU=Math.sin(u);
+                    const xO=r*cosU,yI=r*sinU*cosI,zI=r*sinU*sinI;
+                    sats.push({x:xO*cosR-yI*sinR, y:zI, z:xO*sinR+yI*cosR, alt:cfg.alt});
+                }if(sats.length>=nTotal)break;
+            }
+        }return sats;
+    }
+
+    // === HEX BEAM GRID — generates within off-nadir annulus ===
+    // minR/maxR in radians define the annular region (set by inclusion zone)
+    function computeHexGrid(gain,maxBeams,minR,maxR){
+        const ha=bHA(gain),sp=2*ha*0.87,rH=sp*Math.sqrt(3)/2;
+        if(minR===undefined)minR=0;
+        if(maxR===undefined)maxR=80*D;
+        const pts=[],mR=Math.ceil(maxR/sp)+1;
+        for(let row=-mR;row<=mR;row++){const y=row*rH;const xO=(row%2!==0)?sp/2:0;const mC=Math.ceil(maxR/sp)+1;
+            for(let col=-mC;col<=mC;col++){const x=col*sp+xO;const r=Math.sqrt(x*x+y*y);
+                if(r>=minR&&r<=maxR)pts.push({x,y,r});}}
+        pts.sort((a,b)=>a.r-b.r);return pts.slice(0,maxBeams);
+    }
+
+    // Get off-nadir limits for current inclusion zone at a given orbital radius
+    function getInclOffNadirRange(satR){
+        if(!P.showIncl)return{minON:0,maxON:80*D};
+        // Higher grazing angle → smaller off-nadir (inner ring, closer to nadir)
+        // Lower grazing angle → larger off-nadir (outer ring, toward horizon)
+        const innerON=grazToOffNadir(P.inclMax,satR); // e.g. graz 60° → small off-nadir
+        const outerON=grazToOffNadir(P.inclMin,satR); // e.g. graz 30° → large off-nadir
+        return{
+            minON:innerON>=0?innerON:0,
+            maxON:outerON>=0?outerON:(80*D)
+        };
+    }
+
+    // === COMPUTE BEAMS FOR A SATELLITE POSITION (no additional filtering — hex grid is pre-filtered) ===
+    function computeSatBeams(sP,hexPts,ha){
+        const up=sP.clone().normalize();
+        let east=new THREE.Vector3(0,1,0).cross(up);
+        if(east.length()<0.001)east=new THREE.Vector3(1,0,0).cross(up);
+        east.normalize();
+        const north=up.clone().cross(east).normalize();
+        const results=[],sLsq=sP.lengthSq(),erSq=ER*ER;
+        for(let i=0;i<hexPts.length;i++){
+            const hp=hexPts[i];
+            const sinOff=Math.sin(hp.r),cosOff=Math.cos(hp.r);
+            const az=Math.atan2(hp.x,hp.y),sinAz=Math.sin(az),cosAz=Math.cos(az);
+            const dx=-cosOff*up.x+sinOff*(cosAz*north.x+sinAz*east.x);
+            const dy=-cosOff*up.y+sinOff*(cosAz*north.y+sinAz*east.y);
+            const dz=-cosOff*up.z+sinOff*(cosAz*north.z+sinAz*east.z);
+            const dl=Math.sqrt(dx*dx+dy*dy+dz*dz);
+            const dirx=dx/dl,diry=dy/dl,dirz=dz/dl;
+            const oc2=sP.x*dirx+sP.y*diry+sP.z*dirz;
+            const det=oc2*oc2-(sLsq-erSq);
+            if(det<0)continue;
+            const t=-oc2-Math.sqrt(det);if(t<0)continue;
+            const gx=sP.x+dirx*t,gy=sP.y+diry*t,gz=sP.z+dirz*t;
+            results.push({gx,gy,gz,gl:Math.sqrt(gx*gx+gy*gy+gz*gz),dist:t,coneR:Math.tan(ha)*t});
+        }
+        return results;
+    }
+
+    // === BUILD: SINGLE SATELLITE ===
+    function buildSingleSat(){
+        updateSatPos();satGroup.visible=true;satIM.visible=false;bIM.visible=true;
+        const ha=bHA(P.gain),footR_km=P.alt*Math.tan(ha);
+        const satR=satPos.length();
+        const{minON,maxON}=getInclOffNadirRange(satR);
+        const hexPts=computeHexGrid(P.gain,P.nBeams,minON,maxON);
+        const beams=computeSatBeams(satPos,hexPts,ha);
+        const nadirGround=llv(satLat,satLon,ER);
+        let bi=0,maxFD=0;const activeCol=new THREE.Color(0x33aaff);
+
+        for(let i=0;i<beams.length&&bi<MXB;i++){
+            const b=beams[i];
+            const gpt=new THREE.Vector3(b.gx,b.gy,b.gz);
+            bDum.position.copy(satPos);bDum.lookAt(gpt);bDum.scale.set(b.coneR,b.coneR,b.dist);bDum.updateMatrix();
+            bIM.setMatrixAt(bi,bDum.matrix);
+            const gn=gpt.clone().normalize();
+            fpDum.position.copy(gpt.clone().add(gn.clone().multiplyScalar(0.05)));
+            fpDum.lookAt(fpDum.position.clone().add(gn));fpDum.scale.set(b.coneR,b.coneR,1);fpDum.updateMatrix();
+            const fpChk=getFpChunk(0);
+            fpChk.setMatrixAt(bi,fpDum.matrix);
+            const col=P.randomColors?new THREE.Color(rndColors[i*3],rndColors[i*3+1],rndColors[i*3+2]):activeCol;
+            bIM.setColorAt(bi,col);fpChk.setColorAt(bi,col);
+            const fd=gpt.distanceTo(nadirGround)/SC;if(fd>maxFD)maxFD=fd;
+            bi++;
+        }
+        
+        const fpChk=getFpChunk(0);
+        for(let i=bi;i<MXB;i++){ bIM.setMatrixAt(i,hideM); fpChk.setMatrixAt(i,hideM); }
+        if(bIM.instanceMatrix)bIM.instanceMatrix.needsUpdate=true;
+        if(fpChk.instanceMatrix)fpChk.instanceMatrix.needsUpdate=true;
+        if(bIM.instanceColor)bIM.instanceColor.needsUpdate=true;
+        if(fpChk.instanceColor)fpChk.instanceColor.needsUpdate=true;
+        
+        for(let c=1;c<fpIM_chunks.length;c++){
+            const chk=fpIM_chunks[c];
+            for(let i=0;i<CHUNK_SIZE;i++)chk.setMatrixAt(i,hideM);
+            if(chk.instanceMatrix)chk.instanceMatrix.needsUpdate=true;
+        }
+
+        if(P.showIncl){updateRing(inclRingIn,P.inclMin,satPos);updateRing(inclRingOut,P.inclMax,satPos);}
+        else{inclRingIn.visible=false;inclRingOut.visible=false;}
+
+        // Total possible beams (full grid without zone filter) for excluded count
+        const allHex=computeHexGrid(P.gain,P.nBeams,0,80*D);
+        document.getElementById('m-bm').innerText=bi;
+        document.getElementById('m-bw').innerText=Math.round(footR_km*2);
+        document.getElementById('m-cov').innerText=Math.round(maxFD*2);
+        document.getElementById('m-excl').innerText=P.showIncl?(allHex.length-bi):0;
+        document.getElementById('m-sat').innerText='1';
+        document.getElementById('m-alt').innerText=P.alt;
+    }
+
+    // === BUILD: MULTI-SATELLITE — full per-satellite beam footprints ===
+    function buildMultiSat(){
+        satGroup.visible=false;bIM.visible=false;
+        satIM.visible=true;inclRingIn.visible=false;inclRingOut.visible=false;
+
+        const sats=distributeSatellites(P.nSats);
+        const nSats=sats.length;
+        const ha=bHA(P.gain);
+
+        // Pre-compute hex grid per unique altitude (inclusion zone depends on altitude)
+        const altGrids={};
+        for(const shell of SHELLS){
+            if(!altGrids[shell.alt]){
+                const satR=ER+shell.alt*SC;
+                const{minON,maxON}=getInclOffNadirRange(satR);
+                altGrids[shell.alt]=computeHexGrid(P.gain,P.nBeams,minON,maxON);
+            }
+        }
+
+        // Place satellite models
+        for(let i=0;i<nSats;i++){
+            satDum.position.set(sats[i].x,sats[i].y,sats[i].z);
+            satDum.lookAt(0,0,0);satDum.scale.set(1,1,1);satDum.updateMatrix();
+            satIM.setMatrixAt(i,satDum.matrix);
+        }
+        for(let i=nSats;i<MXS;i++){ satIM.setMatrixAt(i,hideM); }
+        satIM.instanceMatrix.needsUpdate=true;
+
+        // Compute individual beam footprints for every satellite
+        let fi=0;const activeCol=new THREE.Color(0x33aaff);
+        const gn=new THREE.Vector3();
+
+        for(let s=0;s<nSats&&fi<MXF;s++){
+            const sP=new THREE.Vector3(sats[s].x,sats[s].y,sats[s].z);
+            const hexPts=altGrids[sats[s].alt]||altGrids[SHELLS[0].alt];
+            const beams=computeSatBeams(sP,hexPts,ha);
+            for(let i=0;i<beams.length&&fi<MXF;i++){
+                const b=beams[i];
+                gn.set(b.gx/b.gl,b.gy/b.gl,b.gz/b.gl);
+                fpDum.position.set(b.gx+gn.x*0.03,b.gy+gn.y*0.03,b.gz+gn.z*0.03);
+                fpDum.lookAt(fpDum.position.x+gn.x,fpDum.position.y+gn.y,fpDum.position.z+gn.z);
+                fpDum.scale.set(b.coneR,b.coneR,1);fpDum.updateMatrix();
+                
+                const cIdx=Math.floor(fi/CHUNK_SIZE);
+                const lIdx=fi%CHUNK_SIZE;
+                const chk=getFpChunk(cIdx);
+                chk.setMatrixAt(lIdx,fpDum.matrix);
+                
+                const col=P.randomColors?new THREE.Color(rndColors[fi*3],rndColors[fi*3+1],rndColors[fi*3+2]):activeCol;
+                chk.setColorAt(lIdx,col);
+                fi++;
+            }
+        }
+        
+        const lastChunkIdx=Math.floor(fi/CHUNK_SIZE);
+        const lastLocalIdx=fi%CHUNK_SIZE;
+        if(lastChunkIdx < fpIM_chunks.length){
+            const chk=fpIM_chunks[lastChunkIdx];
+            for(let i=lastLocalIdx;i<CHUNK_SIZE;i++) chk.setMatrixAt(i,hideM);
+            if(chk.instanceMatrix)chk.instanceMatrix.needsUpdate=true;
+            if(chk.instanceColor)chk.instanceColor.needsUpdate=true;
+        }
+        for(let c=lastChunkIdx+1;c<fpIM_chunks.length;c++){
+            const chk=fpIM_chunks[c];
+            for(let i=0;i<CHUNK_SIZE;i++) chk.setMatrixAt(i,hideM);
+            if(chk.instanceMatrix)chk.instanceMatrix.needsUpdate=true;
+        }
+        for(let i=0;i<=lastChunkIdx;i++){
+            if(fpIM_chunks[i].instanceMatrix)fpIM_chunks[i].instanceMatrix.needsUpdate=true;
+            if(fpIM_chunks[i].instanceColor)fpIM_chunks[i].instanceColor.needsUpdate=true;
+        }
+
+        const avgAlt=Math.round(sats.reduce((s,v)=>s+v.alt,0)/nSats);
+        document.getElementById('m-bm').innerText=fi;
+        document.getElementById('m-bw').innerText=Math.round(P.alt*Math.tan(ha)*2);
+        document.getElementById('m-cov').innerText='--';
+        document.getElementById('m-excl').innerText='--';
+        document.getElementById('m-sat').innerText=nSats;
+        document.getElementById('m-alt').innerText=avgAlt;
+    }
+
+    // === MAIN BUILD ===
+    function rebuild(){
+        const multi=P.nSats>1;
+        document.getElementById('sat-section').style.display=multi?'none':'';
+        document.getElementById('beam-section').style.opacity=multi?'0.5':'1';
+        document.getElementById('shell-note').style.display=multi?'block':'none';
+        document.getElementById('orbit-section').style.display=multi?'':'none';
+        if(multi)buildMultiSat();else buildSingleSat();
+    }
+
+    function anim(){requestAnimationFrame(anim);oc.update();rn.render(sc,cam);}
+
+    // === CONTROLS ===
+    document.getElementById('i-alt').addEventListener('input',e=>{P.alt=parseInt(e.target.value);document.getElementById('v-alt').innerText=P.alt;rebuild();});
+    document.getElementById('i-nb').addEventListener('input',e=>{P.nBeams=Math.max(1,Math.min(10000,parseInt(e.target.value)||1));rebuild();});
+    document.getElementById('i-g').addEventListener('input',e=>{P.gain=parseInt(e.target.value);document.getElementById('v-g').innerText=P.gain+' dBi';rebuild();});
+    document.getElementById('i-ns').addEventListener('input',e=>{P.nSats=Math.max(1,Math.min(15000,parseInt(e.target.value)||1));rebuild();});
+    document.getElementById('c-incl').addEventListener('change',e=>{P.showIncl=e.target.checked;rebuild();});
+    document.getElementById('i-imin').addEventListener('input',e=>{
+        P.inclMin=parseInt(e.target.value);
+        if(P.inclMin>=P.inclMax){P.inclMax=P.inclMin+1;document.getElementById('i-imax').value=P.inclMax;document.getElementById('v-imax').innerText=P.inclMax+'°';}
+        document.getElementById('v-imin').innerText=P.inclMin+'°';rebuild();});
+    document.getElementById('i-imax').addEventListener('input',e=>{
+        P.inclMax=parseInt(e.target.value);
+        if(P.inclMax<=P.inclMin){P.inclMin=P.inclMax-1;document.getElementById('i-imin').value=P.inclMin;document.getElementById('v-imin').innerText=P.inclMin+'°';}
+        document.getElementById('v-imax').innerText=P.inclMax+'°';rebuild();});
+    document.getElementById('i-wph').addEventListener('input',e=>{P.walkerPhase=parseInt(e.target.value)/100;document.getElementById('v-wph').innerText=P.walkerPhase.toFixed(2);rebuild();});
+    document.getElementById('i-toff').addEventListener('input',e=>{P.timeOffset=parseInt(e.target.value);document.getElementById('v-toff').innerText=P.timeOffset+'°';rebuild();});
+    document.getElementById('c-rc').addEventListener('change',e=>{P.randomColors=e.target.checked;rebuild();});
+
+    document.getElementById('bf').addEventListener('click',()=>{document.documentElement.requestFullscreen();});
+    document.addEventListener('fullscreenchange',()=>{const fs=!!document.fullscreenElement;document.getElementById('bf').style.display=fs?'none':'block';document.getElementById('ui').style.display=fs?'none':'block';});
+    window.addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();rn.setSize(innerWidth,innerHeight);});
+
+    // Init
+    updateSatPos();oc.target.copy(satPos);cam.position.copy(satPos.clone().add(new THREE.Vector3(5,8,10)));oc.update();
+    rebuild();anim();
+    </script>
+</body>
+</html>

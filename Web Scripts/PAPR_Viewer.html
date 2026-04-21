@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RF Signal Lab — Signal Time Domain Viewer</title>
+    <meta name="description"
+        content="Interactive time-domain visualization of LFM, Comms, and OFDM signals with PAPR analysis.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-primary: #171717;
+            --bg-elevated: #1f1f1f;
+            --bg-surface: #252525;
+            --border-subtle: #333;
+            --border-medium: #444;
+            --text-primary: #e5e5e5;
+            --text-secondary: #a3a3a3;
+            --text-muted: #737373;
+            --accent-blue: #38bdf8;
+            --accent-green: #4ade80;
+            --accent-red: #ef4444;
+            --accent-yellow: #facc15;
+            --accent-purple: #a78bfa;
+            --accent-orange: #fb923c;
+            --accent-pink: #f472b6;
+            --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-ui);
+            overflow-y: auto;
+            height: 100vh;
+            padding: 24px;
+        }
+
+        .app-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .app-header h1 {
+            font-size: 1.375rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            letter-spacing: -0.02em;
+        }
+
+        .app-header .subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+            font-weight: 400;
+        }
+
+        .header-status {
+            text-align: right;
+            font-size: 0.6875rem;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .header-status .live {
+            color: var(--accent-green);
+            font-weight: 600;
+        }
+
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--bg-elevated);
+            border-radius: 10px;
+            border: 1px solid var(--border-subtle);
+            flex-wrap: wrap;
+        }
+
+        .mode-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .mode-group label {
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .mode-buttons {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .btn-mode {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.6875rem;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .btn-mode:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+        }
+
+        .btn-mode.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #000;
+            font-weight: 600;
+        }
+
+        .control-group {
+            background: var(--bg-surface);
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-subtle);
+            min-width: 130px;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .control-group.hidden {
+            display: none;
+        }
+
+        .mode-group.hidden {
+            display: none;
+        }
+
+        .control-group .ctrl-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .control-group input[type="number"] {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            border-radius: 4px;
+            padding: 2px 4px;
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            width: 64px;
+            text-align: right;
+        }
+
+        .control-group input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .control-group input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: var(--border-subtle);
+            border-radius: 2px;
+            outline: none;
+            margin-top: 4px;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: currentColor;
+            cursor: pointer;
+            border: none;
+        }
+
+        .ctrl-divider {
+            width: 1px;
+            height: 48px;
+            background: var(--border-subtle);
+            margin: 0 4px;
+            flex-shrink: 0;
+        }
+
+        /* Fixed-height visualization layout — will NOT grow */
+        .viz-layout {
+            display: flex;
+            gap: 20px;
+            height: 500px;
+            min-height: 500px;
+            max-height: 500px;
+        }
+
+        .viz-card {
+            background: var(--bg-elevated);
+            border-radius: 10px;
+            border: 1px solid var(--border-subtle);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .viz-left {
+            flex: 2;
+            min-width: 0;
+        }
+
+        .viz-right {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .viz-label {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            font-size: 0.625rem;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            pointer-events: auto;
+            padding: 3px 8px;
+            background: rgba(23, 23, 23, 0.85);
+            border-radius: 3px;
+            z-index: 2;
+            border-left: 2px solid var(--accent-blue);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .viz-label.papr {
+            border-left-color: var(--accent-red);
+        }
+
+        select.mod-scale {
+            background: #171717;
+            color: var(--text-primary);
+            border: 1px solid var(--border-medium);
+            border-radius: 3px;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            padding: 2px 4px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .papr-stats {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-end;
+            z-index: 2;
+        }
+
+        .papr-stat-box {
+            background: rgba(23, 23, 23, 0.85);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+
+        .papr-stat-box span {
+            color: var(--accent-red);
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <div class="app-header">
+            <div>
+                <h1>Signal Time Domain Viewer</h1>
+                <p class="subtitle">LFM, Comms, OFDM, Multi-Beam OFDM & Multi-Beam Comms — Waveform & PAPR Analysis</p>
+            </div>
+            <div class="header-status">
+                <p>Status: <span class="live">RUNNING</span></p>
+            </div>
+        </div>
+
+        <div class="controls-bar">
+            <!-- Signal Type -->
+            <div class="mode-group">
+                <label>Signal Type</label>
+                <div class="mode-buttons">
+                    <button class="btn-mode active" onclick="setSignalType('LFM')" id="btn-LFM">LFM</button>
+                    <button class="btn-mode" onclick="setSignalType('COMMS')" id="btn-COMMS">Comms</button>
+                    <button class="btn-mode" onclick="setSignalType('OFDM')" id="btn-OFDM">OFDM</button>
+                    <button class="btn-mode" onclick="setSignalType('MB_OFDM')" id="btn-MB_OFDM">MB OFDM</button>
+                    <button class="btn-mode" onclick="setSignalType('MB_COMMS')" id="btn-MB_COMMS">MB Comms</button>
+                </div>
+            </div>
+
+            <div class="ctrl-divider"></div>
+
+            <!-- Shared -->
+            <div class="control-group">
+                <div class="ctrl-label" style="color: var(--accent-blue);"><span>BW (MHz)</span>
+                    <input type="number" id="ctrl-bw-num" value="10" step="0.1">
+                </div>
+                <input type="range" id="ctrl-bw" value="10" min="0.1" max="1000" step="0.1"
+                    style="color: var(--accent-blue);">
+            </div>
+
+            <div class="control-group">
+                <div class="ctrl-label" style="color: var(--accent-green);"><span>Duty (%)</span>
+                    <input type="number" id="ctrl-duty-num" value="100" step="1">
+                </div>
+                <input type="range" id="ctrl-duty" value="100" min="1" max="100" step="1"
+                    style="color: var(--accent-green);">
+            </div>
+
+            <div class="control-group">
+                <div class="ctrl-label" style="color: var(--accent-orange);"><span>Time Scale</span>
+                    <input type="number" id="ctrl-tscale-num" value="1.0" step="0.1">
+                </div>
+                <input type="range" id="ctrl-tscale" value="1.0" min="0.0" max="10.0" step="0.1"
+                    style="color: var(--accent-orange);">
+            </div>
+
+            <div class="control-group">
+                <div class="ctrl-label" style="color: var(--accent-red);"><span>DC Bias</span>
+                    <input type="number" id="ctrl-dc-num" value="0.0" step="0.1">
+                </div>
+                <input type="range" id="ctrl-dc" value="0.0" min="-10.0" max="10.0" step="0.1"
+                    style="color: var(--accent-red);">
+            </div>
+
+            <!-- Carrier (Used in all modes) -->
+            <div class="control-group">
+                <div class="ctrl-label" style="color: var(--accent-orange);"><span>Carrier (MHz)</span>
+                    <input type="number" id="ctrl-carrier-num" value="50" step="1">
+                </div>
+                <input type="range" id="ctrl-carrier" value="50" min="0" max="1000" step="1"
+                    style="color: var(--accent-orange);">
+            </div>
+
+            <!-- LFM Only -->
+            <div class="control-group lfm-only">
+                <div class="ctrl-label" style="color: var(--accent-pink);"><span>Pulse Width (us)</span>
+                    <input type="number" id="ctrl-pw-num" value="1.0" step="0.1">
+                </div>
+                <input type="range" id="ctrl-pw" value="1.0" min="0.1" max="1000.0" step="0.1"
+                    style="color: var(--accent-pink);">
+            </div>
+
+            <!-- OFDM subcarrier BW (only for OFDM and MB_OFDM) -->
+            <div class="control-group ofdm-only hidden">
+                <div class="ctrl-label" style="color: var(--accent-purple);"><span>Sub BW (kHz)</span>
+                    <input type="number" id="ctrl-subbw-num" value="200" step="10">
+                </div>
+                <input type="range" id="ctrl-subbw" value="200" min="1" max="5000" step="1"
+                    style="color: var(--accent-purple);">
+            </div>
+
+            <!-- Modulation (for Comms, OFDM, MB_OFDM, MB_COMMS) -->
+            <div class="mode-group mod-only hidden">
+                <label>Modulation</label>
+                <div class="mode-buttons">
+                    <button class="btn-mode active" onclick="setModulation('BPSK')" id="btn-mod-BPSK">BPSK</button>
+                    <button class="btn-mode" onclick="setModulation('QPSK')" id="btn-mod-QPSK">QPSK</button>
+                    <button class="btn-mode" onclick="setModulation('16QAM')" id="btn-mod-16QAM">16QAM</button>
+                    <button class="btn-mode" onclick="setModulation('64QAM')" id="btn-mod-64QAM">64QAM</button>
+                </div>
+            </div>
+
+            <!-- Num Beams (MB_OFDM and MB_COMMS) -->
+            <div class="control-group mb-only hidden">
+                <div class="ctrl-label" style="color: var(--accent-yellow);"><span>Num Beams</span>
+                    <input type="number" id="ctrl-beams-num" value="100" step="1">
+                </div>
+                <input type="range" id="ctrl-beams" value="100" min="1" max="10000" step="1"
+                    style="color: var(--accent-yellow);">
+            </div>
+
+            <div class="ctrl-divider"></div>
+            <button class="btn-mode" onclick="resetMaxPAPR()">Reset Peaks</button>
+        </div>
+
+        <!-- Visualizations -->
+        <div class="viz-layout">
+            <div class="viz-card viz-left">
+                <div class="viz-label">
+                    Time Domain Waveform
+                    <select id="left-scale" class="mod-scale">
+                        <option value="linear">Linear (Real)</option>
+                        <option value="db">Magnitude (dB)</option>
+                    </select>
+                </div>
+                <canvas id="canvas-time"></canvas>
+            </div>
+            <div class="viz-card viz-right">
+                <div class="viz-label papr">
+                    Instantaneous PAPR
+                    <select id="right-scale" class="mod-scale">
+                        <option value="db">dB View</option>
+                        <option value="linear">Linear (Ratio)</option>
+                    </select>
+                </div>
+                <div class="papr-stats">
+                    <div class="papr-stat-box">Inst: <span id="lbl-inst-papr">0.00</span></div>
+                    <div class="papr-stat-box">Max: <span id="lbl-max-papr">0.00</span></div>
+                </div>
+                <canvas id="canvas-papr"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ===== STATE ===== */
+        const STATE = {
+            signalType: 'LFM', // LFM, COMMS, OFDM, MB_OFDM, MB_COMMS
+            bw: 10,
+            duty: 100,
+            tscale: 1.0,
+            dc: 0.0,
+            carrier: 50,
+            lfm_pw: 1.0,
+            ofdm_subbw: 200,
+            ofdm_mod: 'BPSK',
+            mb_beams: 100,
+            maxPaprDb: 0,
+            maxPaprLin: 1,
+            displayAmp: 1.0,
+            targetAmp: 1.0,
+            frameMaxAmp: 0,
+            lastAmpUpdate: 0
+        };
+
+        const MAX_BEAMS = 5000;
+        const BEAM_PHASES = new Float32Array(MAX_BEAMS);
+        for (let i = 0; i < MAX_BEAMS; i++) BEAM_PHASES[i] = Math.random() * Math.PI * 2;
+
+        /* ===== UI BINDING ===== */
+        function bindCtrl(id, key, parser, resetPapr = true) {
+            const rng = document.getElementById('ctrl-' + id);
+            const num = document.getElementById('ctrl-' + id + '-num');
+            const update = (val) => {
+                const v = parser(val);
+                rng.value = v; num.value = v;
+                STATE[key] = v;
+                if (resetPapr) resetMaxPAPR();
+            };
+            rng.addEventListener('input', e => update(e.target.value));
+            num.addEventListener('input', e => update(e.target.value));
+        }
+
+        bindCtrl('bw', 'bw', parseFloat);
+        bindCtrl('duty', 'duty', parseFloat);
+        bindCtrl('tscale', 'tscale', parseFloat, false);
+        bindCtrl('dc', 'dc', parseFloat);
+        bindCtrl('carrier', 'carrier', parseFloat);
+        bindCtrl('pw', 'lfm_pw', parseFloat);
+        bindCtrl('subbw', 'ofdm_subbw', parseFloat);
+        bindCtrl('beams', 'mb_beams', parseInt);
+
+        function setSignalType(type) {
+            STATE.signalType = type;
+            // Deactivate all signal-type buttons (not modulation buttons)
+            document.querySelectorAll('.btn-mode').forEach(b => {
+                if (b.id && b.id.startsWith('btn-') && !b.id.startsWith('btn-mod')) b.classList.remove('active');
+            });
+            document.getElementById('btn-' + type).classList.add('active');
+
+            const isLFM = type === 'LFM';
+            const isOFDM = type === 'OFDM' || type === 'MB_OFDM';
+            const needsMod = type !== 'LFM'; // all except LFM use modulation
+            const needsBeams = type === 'MB_OFDM' || type === 'MB_COMMS';
+
+            document.querySelectorAll('.lfm-only').forEach(el => el.classList.toggle('hidden', !isLFM));
+            document.querySelectorAll('.ofdm-only').forEach(el => el.classList.toggle('hidden', !isOFDM));
+            document.querySelectorAll('.mod-only').forEach(el => el.classList.toggle('hidden', !needsMod));
+            document.querySelectorAll('.mb-only').forEach(el => el.classList.toggle('hidden', !needsBeams));
+
+            resetMaxPAPR();
+        }
+
+        function setModulation(mod) {
+            STATE.ofdm_mod = mod;
+            document.querySelectorAll('.btn-mode').forEach(b => {
+                if (b.id && b.id.startsWith('btn-mod')) b.classList.remove('active');
+            });
+            document.getElementById('btn-mod-' + mod).classList.add('active');
+            resetMaxPAPR();
+        }
+
+        function resetMaxPAPR() {
+            STATE.maxPaprDb = 0;
+            STATE.maxPaprLin = 1;
+        }
+
+        const N = 4096;
+        const sigI = new Float32Array(N);
+        const sigQ = new Float32Array(N);
+        const sigActive = new Uint8Array(N); // 1 = signal on, 0 = duty cycle gap
+        let tAcc = 0;
+
+        function pseudoRand(seed) {
+            let x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+            return x - Math.floor(x);
+        }
+
+        function modSymbol(mod, r1, r2) {
+            let i = 0, q = 0, m = 1;
+            if (mod === 'BPSK') { i = r1 > 0.5 ? 1 : -1; m = 1; }
+            else if (mod === 'QPSK') { i = r1 > 0.5 ? 1 : -1; q = r2 > 0.5 ? 1 : -1; m = Math.SQRT2; }
+            else if (mod === '16QAM') {
+                const v = [-3, -1, 1, 3]; i = v[(r1 * 4) | 0]; q = v[(r2 * 4) | 0]; m = 3 * Math.SQRT2;
+            } else if (mod === '64QAM') {
+                const v = [-7, -5, -3, -1, 1, 3, 5, 7]; i = v[(r1 * 8) | 0]; q = v[(r2 * 8) | 0]; m = 7 * Math.SQRT2;
+            }
+            return { i: i / m, q: q / m };
+        }
+
+        function generateSignal(dt) {
+            tAcc += dt * STATE.tscale;
+            sigI.fill(0);
+            sigQ.fill(0);
+            sigActive.fill(STATE.duty >= 100 ? 1 : 0); // default: all active if 100% duty
+
+            const dutyFrac = Math.max(0.01, STATE.duty / 100);
+            
+            // Unified default time scale (us) so symbols from different waveforms are directly comparable
+            const timeSpan = 15.0;
+
+            if (STATE.signalType === 'LFM') {
+                // LFM
+                const Tpw = STATE.lfm_pw;           // us
+                const PRI = Tpw / dutyFrac;          // us
+                const K = STATE.bw / Tpw;            // chirp rate MHz/us
+
+                for (let k = 0; k < N; k++) {
+                    const t = (k / N) * timeSpan + tAcc;
+                    const tm = ((t % PRI) + PRI) % PRI;
+                    if (tm <= Tpw) {
+                        const ph = 2 * Math.PI * (STATE.carrier * tm + 0.5 * K * tm * tm);
+                        sigI[k] = Math.cos(ph);
+                        sigQ[k] = Math.sin(ph);
+                        sigActive[k] = 1;
+                    }
+                }
+            }
+            else if (STATE.signalType === 'COMMS') {
+                // Single-carrier Comms: symbol rate = BW * 2 (Nyquist)
+                const symRate = Math.max(1, STATE.bw * 2); // MHz => Msym/s
+                const symDuration = 1.0 / symRate;          // us per symbol
+                const PRI = timeSpan / dutyFrac;
+                const Tpw = timeSpan;
+
+                for (let k = 0; k < N; k++) {
+                    const t = (k / N) * timeSpan + tAcc;
+                    const tm = ((t % PRI) + PRI) % PRI;
+                    if (tm <= Tpw) {
+                        sigActive[k] = 1;
+                        const base_si = Math.floor(t * symRate);
+                        const t_in_sym = t * symRate - base_si;
+                        const s = modSymbol(STATE.ofdm_mod, pseudoRand(base_si), pseudoRand(base_si + 0.5));
+                        const s_prev = modSymbol(STATE.ofdm_mod, pseudoRand(base_si - 1), pseudoRand(base_si - 0.5));
+
+                        // Continuous analytical transition avoids visual jitter
+                        let transition = t_in_sym * 10.0;
+                        if (transition > 1.0) transition = 1.0;
+                        let blend = transition * transition * (3 - 2 * transition);
+
+                        const rI = s_prev.i + (s.i - s_prev.i) * blend;
+                        const rQ = s_prev.q + (s.q - s_prev.q) * blend;
+
+                        const ph = 2 * Math.PI * STATE.carrier * t;
+                        const c = Math.cos(ph), s_ph = Math.sin(ph);
+                        sigI[k] = rI * c - rQ * s_ph;
+                        sigQ[k] = rI * s_ph + rQ * c;
+                    }
+                }
+            }
+            else if (STATE.signalType === 'OFDM' || STATE.signalType === 'MB_OFDM') {
+                // OFDM: symbol duration = 1 / subcarrier_BW
+                let nSub = Math.floor((STATE.bw * 1000) / STATE.ofdm_subbw);
+                nSub = Math.max(1, nSub);
+                const numBeams = STATE.signalType === 'MB_OFDM' ? STATE.mb_beams : 1;
+                const subBwMHz = STATE.ofdm_subbw / 1000;  // kHz to MHz
+                const Tsym = 1.0 / subBwMHz;                // us per OFDM symbol
+                const PRI = timeSpan / dutyFrac;
+                const Tpw = timeSpan;
+                const visSub = nSub;
+                const subScale = 1.0 / Math.sqrt(visSub);
+                const scStep = 1;
+
+                for (let b = 0; b < numBeams; b++) {
+                    const bPh = BEAM_PHASES[b];
+                    for (let sc = 0; sc < visSub; sc++) {
+                        // Spread the simulated subcarriers physically across the total available bandwidth
+                        const freq = (sc * scStep) - (nSub / 2);
+                        for (let k = 0; k < N; k++) {
+                            const t = (k / N) * timeSpan + tAcc;
+                            const tm = ((t % PRI) + PRI) % PRI;
+                            if (tm <= Tpw) {
+                                sigActive[k] = 1;
+                                
+                                // Stagger symbol transitions across beams to reflect asynchronous links or PAPR-reduction staggering
+                                const t_beam = t + b * (Tsym * 0.371); 
+                                const base_si = Math.floor(t_beam / Tsym);
+                                const t_in_sym = t_beam / Tsym - base_si;
+
+                                const sym = modSymbol(STATE.ofdm_mod,
+                                    pseudoRand(200 + b * 1000 + sc * 10 + base_si * 3),
+                                    pseudoRand(200 + b * 1000 + sc * 10 + base_si * 3 + 1));
+                                const sym_prev = modSymbol(STATE.ofdm_mod,
+                                    pseudoRand(200 + b * 1000 + sc * 10 + (base_si - 1) * 3),
+                                    pseudoRand(200 + b * 1000 + sc * 10 + (base_si - 1) * 3 + 1));
+
+                                let transition = t_in_sym * 10.0;
+                                if (transition > 1.0) transition = 1.0;
+                                let blend = transition * transition * (3 - 2 * transition);
+
+                                const rI = sym_prev.i + (sym.i - sym_prev.i) * blend;
+                                const rQ = sym_prev.q + (sym.q - sym_prev.q) * blend;
+
+                                // Shift base frequency by carrier
+                                const ph = 2 * Math.PI * (freq * subBwMHz + STATE.carrier) * t + bPh;
+                                const c = Math.cos(ph), s = Math.sin(ph);
+                                sigI[k] += (rI * c - rQ * s) * subScale;
+                                sigQ[k] += (rI * s + rQ * c) * subScale;
+                            }
+                        }
+                    }
+                }
+                const ns = 1.0 / Math.sqrt(numBeams);
+                for (let k = 0; k < N; k++) { sigI[k] *= ns; sigQ[k] *= ns; }
+            }
+            else if (STATE.signalType === 'MB_COMMS') {
+                // Multi-Beam Comms: multiple single-carrier streams summed
+                const numBeams = STATE.mb_beams;
+                const symRate = Math.max(1, STATE.bw * 2); // Msym/s
+                const symDuration = 1.0 / symRate;          // us per symbol
+                const PRI = timeSpan / dutyFrac;
+                const Tpw = timeSpan;
+
+                for (let b = 0; b < numBeams; b++) {
+                    const bPh = BEAM_PHASES[b];
+                    const carrierOffset = STATE.carrier + (b - numBeams / 2) * (STATE.bw / numBeams);
+
+                    for (let k = 0; k < N; k++) {
+                        const t = (k / N) * timeSpan + tAcc;
+                        const tm = ((t % PRI) + PRI) % PRI;
+                        if (tm <= Tpw) {
+                            sigActive[k] = 1;
+                            const base_si = Math.floor(t * symRate);
+                            const t_in_sym = t * symRate - base_si;
+                            const s = modSymbol(STATE.ofdm_mod, pseudoRand(base_si + b * 7717), pseudoRand(base_si + b * 7717 + 0.5));
+                            const s_prev = modSymbol(STATE.ofdm_mod, pseudoRand(base_si - 1 + b * 7717), pseudoRand(base_si - 1 + b * 7717 + 0.5));
+
+                            let transition = t_in_sym * 10.0;
+                            if (transition > 1.0) transition = 1.0;
+                            let blend = transition * transition * (3 - 2 * transition);
+
+                            const rI = s_prev.i + (s.i - s_prev.i) * blend;
+                            const rQ = s_prev.q + (s.q - s_prev.q) * blend;
+
+                            const ph = 2 * Math.PI * carrierOffset * t + bPh;
+                            const c = Math.cos(ph), s_ph = Math.sin(ph);
+                            sigI[k] += (rI * c - rQ * s_ph);
+                            sigQ[k] += (rI * s_ph + rQ * c);
+                        }
+                    }
+                }
+                const ns = 1.0 / Math.sqrt(numBeams);
+                for (let k = 0; k < N; k++) { sigI[k] *= ns; sigQ[k] *= ns; }
+            }
+
+            // Apply DC Bias
+            for (let k = 0; k < N; k++) { sigI[k] += STATE.dc; sigQ[k] += STATE.dc; }
+        }
+
+        /* ===== CANVAS SETUP (fixed — no cumulative scaling) ===== */
+        const canvasTime = document.getElementById('canvas-time');
+        const canvasPapr = document.getElementById('canvas-papr');
+        const ctxTime = canvasTime.getContext('2d');
+        const ctxPapr = canvasPapr.getContext('2d');
+
+        // Track last known sizes to avoid redundant resizes
+        let lastTimeW = 0, lastTimeH = 0, lastPaprW = 0, lastPaprH = 0;
+
+        function syncCanvas(canvas, ctx) {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const pw = Math.round(rect.width);
+            const ph = Math.round(rect.height);
+            const needsResize = canvas.width !== pw * dpr || canvas.height !== ph * dpr;
+            if (needsResize) {
+                canvas.width = pw * dpr;
+                canvas.height = ph * dpr;
+                canvas.style.width = pw + 'px';
+                canvas.style.height = ph + 'px';
+            }
+            // Always reset transform before drawing to prevent accumulation
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            return { w: pw, h: ph };
+        }
+
+        /* ===== RENDER ===== */
+        function render(dt) {
+            const { w, h } = syncCanvas(canvasTime, ctxTime);
+            const { w: pw, h: ph } = syncCanvas(canvasPapr, ctxPapr);
+
+            generateSignal(dt);
+
+            /* --- Compute instantaneous power and average (active samples only) --- */
+            const powers = new Float32Array(N);
+            let pSum = 0, activeCount = 0;
+            for (let k = 0; k < N; k++) {
+                powers[k] = sigI[k] * sigI[k] + sigQ[k] * sigQ[k];
+                if (sigActive[k]) {
+                    pSum += powers[k];
+                    activeCount++;
+                }
+            }
+            const pAvg = activeCount > 0 ? Math.max(pSum / activeCount, 1e-12) : 1e-12;
+
+            /* --- Compute PAPR per sample; -1 means gap (inactive) --- */
+            const papr = new Float32Array(N);
+            let peakLin = 0;
+            for (let k = 0; k < N; k++) {
+                if (sigActive[k]) {
+                    papr[k] = powers[k] / pAvg;
+                    if (papr[k] > peakLin) peakLin = papr[k];
+                } else {
+                    papr[k] = -1; // sentinel: gap
+                }
+            }
+            let peakDb = peakLin > 1e-10 ? 10 * Math.log10(peakLin) : 0;
+            if (peakDb < 0) peakDb = 0;
+
+            if (peakLin > STATE.maxPaprLin) STATE.maxPaprLin = peakLin;
+            if (peakDb > STATE.maxPaprDb) STATE.maxPaprDb = peakDb;
+
+            let currentFrameMaxAmp = 0;
+            for (let k = 0; k < N; k++) {
+                if (sigActive[k]) {
+                    const absI = Math.abs(sigI[k]);
+                    if (absI > currentFrameMaxAmp) currentFrameMaxAmp = absI;
+                }
+            }
+            if (currentFrameMaxAmp > STATE.frameMaxAmp) {
+                STATE.frameMaxAmp = currentFrameMaxAmp;
+            }
+            const now = performance.now();
+            if (now - STATE.lastAmpUpdate > 1000) {
+                STATE.targetAmp = Math.max(0.1, STATE.frameMaxAmp);
+                STATE.frameMaxAmp = 0;
+                STATE.lastAmpUpdate = now;
+            }
+            if (currentFrameMaxAmp > STATE.displayAmp) {
+                STATE.displayAmp = currentFrameMaxAmp;
+                STATE.targetAmp = currentFrameMaxAmp;
+                STATE.lastAmpUpdate = now;
+            } else {
+                STATE.displayAmp += (STATE.targetAmp - STATE.displayAmp) * 0.1;
+            }
+
+            /* ======== LEFT CANVAS: Time Domain ======== */
+            ctxTime.fillStyle = '#171717';
+            ctxTime.fillRect(0, 0, w, h);
+
+            const leftMode = document.getElementById('left-scale').value;
+
+            // Center line
+            ctxTime.strokeStyle = '#2a2a2a';
+            ctxTime.lineWidth = 1;
+            ctxTime.beginPath();
+            ctxTime.moveTo(0, h / 2); ctxTime.lineTo(w, h / 2);
+            ctxTime.stroke();
+
+            if (leftMode === 'linear') {
+                const cy = h / 2;
+                const sy = ((h / 2) * 0.8) / STATE.displayAmp;
+                ctxTime.lineWidth = 1.5;
+                ctxTime.lineJoin = 'round';
+
+                // I (blue)
+                ctxTime.strokeStyle = 'rgba(56, 189, 248, 0.9)';
+                ctxTime.beginPath();
+                for (let k = 0; k < N; k++) {
+                    const x = (k / (N - 1)) * w;
+                    // For gap support, skip drawing if sigActive is 0
+                    if (!sigActive[k]) continue;
+                    const y = cy - sigI[k] * sy;
+                    k === 0 || !sigActive[k - 1] ? ctxTime.moveTo(x, y) : ctxTime.lineTo(x, y);
+                }
+                ctxTime.stroke();
+            } else {
+                // dB magnitude
+                ctxTime.strokeStyle = 'rgba(236, 72, 153, 0.9)';
+                ctxTime.lineWidth = 1.5;
+                ctxTime.lineJoin = 'round';
+                ctxTime.beginPath();
+                for (let k = 0; k < N; k++) {
+                    const x = (k / (N - 1)) * w;
+                    const db = powers[k] > 1e-10 ? 10 * Math.log10(powers[k]) : -60;
+                    let yn = (db + 60) / 80; // maps -60 to +20 dB across canvas
+                    yn = Math.max(0, Math.min(1, yn));
+                    const y = h - 20 - yn * (h - 40);
+                    k === 0 ? ctxTime.moveTo(x, y) : ctxTime.lineTo(x, y);
+                }
+                ctxTime.stroke();
+
+                // dB grid lines
+                ctxTime.strokeStyle = 'rgba(115,115,115,0.15)';
+                ctxTime.lineWidth = 1;
+                ctxTime.font = '10px JetBrains Mono';
+                ctxTime.fillStyle = '#555';
+                for (let db = -40; db <= 20; db += 20) {
+                    let yn = (db + 60) / 80;
+                    const y = h - 20 - yn * (h - 40);
+                    ctxTime.beginPath();
+                    ctxTime.moveTo(0, y); ctxTime.lineTo(w, y);
+                    ctxTime.stroke();
+                    ctxTime.fillText(db + ' dB', 5, y - 3);
+                }
+            }
+
+            /* ======== RIGHT CANVAS: Instantaneous PAPR ======== */
+            const rightMode = document.getElementById('right-scale').value;
+            document.getElementById('lbl-inst-papr').innerText =
+                rightMode === 'db' ? peakDb.toFixed(2) + ' dB' : peakLin.toFixed(2) + 'x';
+            document.getElementById('lbl-max-papr').innerText =
+                rightMode === 'db' ? STATE.maxPaprDb.toFixed(2) + ' dB' : STATE.maxPaprLin.toFixed(2) + 'x';
+
+            ctxPapr.fillStyle = '#171717';
+            ctxPapr.fillRect(0, 0, pw, ph);
+
+            const padB = 20, padT = 40;
+            const dH = ph - padB - padT;
+
+            if (rightMode === 'db') {
+                const yMin = 0;
+                const yMax = Math.max(12, STATE.maxPaprDb + 2);
+                const rng = yMax - yMin;
+
+                // Grid
+                ctxPapr.strokeStyle = 'rgba(115,115,115,0.2)';
+                ctxPapr.lineWidth = 1;
+                ctxPapr.font = '10px JetBrains Mono';
+                ctxPapr.fillStyle = '#555';
+                for (let g = 0; g <= yMax; g += 3) {
+                    const yn = (g - yMin) / rng;
+                    const y = ph - padB - yn * dH;
+                    ctxPapr.beginPath(); ctxPapr.moveTo(0, y); ctxPapr.lineTo(pw, y); ctxPapr.stroke();
+                    ctxPapr.fillText(g + ' dB', 5, y - 2);
+                }
+
+                // PAPR trace (skip gaps where papr[k] < 0)
+                ctxPapr.strokeStyle = '#facc15';
+                ctxPapr.lineWidth = 1.5;
+                ctxPapr.lineJoin = 'round';
+                let drawing = false;
+                ctxPapr.beginPath();
+                for (let k = 0; k < N; k++) {
+                    const x = (k / (N - 1)) * pw;
+                    if (papr[k] < 0) {
+                        if (drawing) { ctxPapr.stroke(); ctxPapr.beginPath(); drawing = false; }
+                        continue;
+                    }
+                    let vDb = papr[k] > 1e-10 ? 10 * Math.log10(papr[k]) : 0;
+                    if (vDb < 0) vDb = 0;
+                    const yn = (vDb - yMin) / rng;
+                    const y = ph - padB - yn * dH;
+                    if (!drawing) { ctxPapr.moveTo(x, y); drawing = true; }
+                    else { ctxPapr.lineTo(x, y); }
+                }
+                if (drawing) ctxPapr.stroke();
+
+                // Max line
+                if (STATE.maxPaprDb > 0) {
+                    const yn = (STATE.maxPaprDb - yMin) / rng;
+                    const yL = ph - padB - yn * dH;
+                    ctxPapr.strokeStyle = '#ef4444';
+                    ctxPapr.setLineDash([5, 5]);
+                    ctxPapr.lineWidth = 1.5;
+                    ctxPapr.beginPath(); ctxPapr.moveTo(0, yL); ctxPapr.lineTo(pw, yL); ctxPapr.stroke();
+                    ctxPapr.setLineDash([]);
+                    ctxPapr.fillStyle = '#ef4444';
+                    ctxPapr.font = 'bold 11px JetBrains Mono';
+                    ctxPapr.fillText('MAX ' + STATE.maxPaprDb.toFixed(2) + ' dB', pw - 140, yL - 5);
+                }
+            } else {
+                // Linear ratio
+                const yMin = 0;
+                const yMax = Math.max(3, STATE.maxPaprLin * 1.2);
+                const rng = yMax - yMin;
+
+                // Grid
+                ctxPapr.strokeStyle = 'rgba(115,115,115,0.2)';
+                ctxPapr.lineWidth = 1;
+                ctxPapr.font = '10px JetBrains Mono';
+                ctxPapr.fillStyle = '#555';
+                const step = yMax > 20 ? Math.ceil(yMax / 10) : yMax > 5 ? 2 : 1;
+                for (let g = 0; g <= yMax; g += step) {
+                    const yn = g / rng;
+                    const y = ph - padB - yn * dH;
+                    ctxPapr.beginPath(); ctxPapr.moveTo(0, y); ctxPapr.lineTo(pw, y); ctxPapr.stroke();
+                    ctxPapr.fillText(g.toFixed(1) + 'x', 5, y - 2);
+                }
+
+                // PAPR trace (skip gaps where papr[k] < 0)
+                ctxPapr.strokeStyle = '#facc15';
+                ctxPapr.lineWidth = 1.5;
+                ctxPapr.lineJoin = 'round';
+                let drawingLin = false;
+                ctxPapr.beginPath();
+                for (let k = 0; k < N; k++) {
+                    const x = (k / (N - 1)) * pw;
+                    if (papr[k] < 0) {
+                        if (drawingLin) { ctxPapr.stroke(); ctxPapr.beginPath(); drawingLin = false; }
+                        continue;
+                    }
+                    const yn = papr[k] / rng;
+                    const y = ph - padB - yn * dH;
+                    if (!drawingLin) { ctxPapr.moveTo(x, y); drawingLin = true; }
+                    else { ctxPapr.lineTo(x, y); }
+                }
+                if (drawingLin) ctxPapr.stroke();
+
+                // Max line
+                if (STATE.maxPaprLin > 1) {
+                    const yn = STATE.maxPaprLin / rng;
+                    const yL = ph - padB - yn * dH;
+                    ctxPapr.strokeStyle = '#ef4444';
+                    ctxPapr.setLineDash([5, 5]);
+                    ctxPapr.lineWidth = 1.5;
+                    ctxPapr.beginPath(); ctxPapr.moveTo(0, yL); ctxPapr.lineTo(pw, yL); ctxPapr.stroke();
+                    ctxPapr.setLineDash([]);
+                    ctxPapr.fillStyle = '#ef4444';
+                    ctxPapr.font = 'bold 11px JetBrains Mono';
+                    ctxPapr.fillText('MAX ' + STATE.maxPaprLin.toFixed(2) + 'x', pw - 140, yL - 5);
+                }
+            }
+        }
+
+        /* ===== ANIMATION LOOP ===== */
+        let lastTime = 0;
+        function loop(t) {
+            if (!lastTime) lastTime = t;
+            const dt = Math.min((t - lastTime) / 1000, 0.1);
+            lastTime = t;
+            render(dt);
+            requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+    </script>
+
+</body>
+
+</html>

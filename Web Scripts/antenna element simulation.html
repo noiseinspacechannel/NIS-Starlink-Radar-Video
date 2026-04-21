@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starlink Phased Array Physics Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #03050a;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .ui-panel {
+            background: rgba(8, 12, 18, 0.85);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            box-shadow: 0 0 30px rgba(0, 80, 255, 0.15);
+            user-select: none;
+            z-index: 10;
+        }
+
+        /* Custom Input Sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #1e3a8a;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #60a5fa;
+            cursor: pointer;
+            border: 2px solid #03050a;
+            box-shadow: 0 0 6px rgba(96, 165, 250, 0.6);
+            transition: transform 0.2s;
+        }
+
+        input[type=range]:hover::-webkit-slider-thumb {
+            transform: scale(1.25);
+        }
+
+        .feed-x-thumb::-webkit-slider-thumb {
+            background: #ef4444 !important;
+            border-color: #7f1d1d !important;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.6) !important;
+        }
+
+        .feed-z-thumb::-webkit-slider-thumb {
+            background: #22c55e !important;
+            border-color: #14532d !important;
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.6) !important;
+        }
+
+        input[type=range]:disabled::-webkit-slider-thumb {
+            background: #4b5563 !important;
+            box-shadow: none !important;
+            border-color: #1f2937 !important;
+        }
+
+        input[type=range]:disabled {
+            background: #1f2937;
+        }
+
+        input[type=number] {
+            -moz-appearance: textfield;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            color: #eff6ff;
+            border-radius: 4px;
+            padding: 4px;
+            outline: none;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        input[type=number]:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 8px rgba(96, 165, 250, 0.4);
+        }
+
+        .btn-preset {
+            background: rgba(30, 58, 138, 0.4);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #93c5fd;
+            transition: all 0.2s;
+        }
+
+        .btn-preset:hover {
+            background: rgba(59, 130, 246, 0.6);
+            color: white;
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-preset.active {
+            background: #3b82f6;
+            border-color: #93c5fd;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+        }
+
+        .btn-array {
+            background: linear-gradient(135deg, #1e3a8a, #4c1d95);
+            border: 1px solid #8b5cf6;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn-array.active {
+            background: linear-gradient(135deg, #059669, #10b981);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.8);
+            border-color: #6ee7b7;
+            text-shadow: 0 0 5px white;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 3px;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div class="absolute top-4 right-4 ui-panel p-4 rounded-lg text-center z-10 shadow-2xl">
+        <div class="text-[10px] text-gray-400 uppercase tracking-widest mb-1 font-bold">Transmitting Polarization</div>
+        <div id="pol-status" class="text-xl font-bold text-white tracking-wide"
+            style="text-shadow: 0 0 12px rgba(255,255,255,0.4);">
+            Right Circular (RCP)
+        </div>
+        <div
+            class="mt-3 text-[10px] text-blue-300 font-bold border-t border-blue-900/50 pt-2 flex justify-between gap-4">
+            <span>λ locked to 2× Element Spacing</span>
+            <span id="arr-status" class="text-gray-400">Single Element</span>
+        </div>
+    </div>
+
+    <div
+        class="absolute top-4 left-4 w-[380px] ui-panel rounded-lg p-4 text-blue-100 text-xs flex flex-col gap-4 max-h-[96vh] overflow-y-auto">
+
+        <h1 class="text-lg font-bold text-blue-400 border-b border-blue-900 pb-2 flex justify-between items-end">
+            <span>Phased Array Physics Engine</span>
+        </h1>
+
+        <button id="btn-toggle-array" class="btn-array w-full py-3 rounded shadow-lg text-sm">
+            Power All Elements (Array Mode)
+        </button>
+
+        <div>
+            <div class="text-gray-400 mb-2 uppercase tracking-widest text-[10px] font-bold">Polarization Presets</div>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <button class="btn-preset py-1.5 rounded" data-preset="H" onclick="applyPreset('H')">Linear H
+                    (X)</button>
+                <button class="btn-preset py-1.5 rounded" data-preset="V" onclick="applyPreset('V')">Linear V
+                    (Z)</button>
+                <button class="btn-preset active py-1.5 rounded" data-preset="RCP" onclick="applyPreset('RCP')">Right
+                    Circular</button>
+                <button class="btn-preset py-1.5 rounded" data-preset="LCP" onclick="applyPreset('LCP')">Left
+                    Circular</button>
+            </div>
+            <button class="btn-preset w-full py-1.5 rounded" data-preset="SLANT" onclick="applyPreset('SLANT')">Dual
+                Slant (45°)</button>
+        </div>
+
+        <div class="bg-red-900/10 border border-red-900/30 p-3 rounded space-y-3 relative overflow-hidden shadow-inner">
+            <div class="absolute top-0 left-0 w-1 h-full bg-red-500 shadow-[0_0_8px_#ef4444]"></div>
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-red-400 font-bold flex items-center gap-2">X-Axis Copper L-Probe</span>
+                <label class="flex items-center cursor-pointer gap-1">
+                    <input type="checkbox" id="chk-x-on" checked class="accent-red-500 w-3 h-3">
+                    <span class="text-[10px] text-gray-400">PWR</span>
+                </label>
+            </div>
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-gray-400">Amplitude</span>
+                <input type="range" id="sl-amp-x" min="0" max="1" step="0.05" value="1.0" class="w-[60%] feed-x-thumb">
+            </div>
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-gray-400">Phase Delay (deg)</span>
+                <div class="flex items-center gap-2 w-[60%]">
+                    <input type="range" id="sl-ph-x" min="-180" max="180" step="5" value="0"
+                        class="w-full feed-x-thumb">
+                    <input type="number" id="inp-ph-x" value="0" class="w-12 !border-red-800 text-[10px]">
+                </div>
+            </div>
+        </div>
+
+        <div
+            class="bg-green-900/10 border border-green-900/30 p-3 rounded space-y-3 relative overflow-hidden shadow-inner">
+            <div class="absolute top-0 left-0 w-1 h-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-green-400 font-bold flex items-center gap-2">Z-Axis Copper L-Probe</span>
+                <label class="flex items-center cursor-pointer gap-1">
+                    <input type="checkbox" id="chk-z-on" checked class="accent-green-500 w-3 h-3">
+                    <span class="text-[10px] text-gray-400">PWR</span>
+                </label>
+            </div>
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-gray-400">Amplitude</span>
+                <input type="range" id="sl-amp-z" min="0" max="1" step="0.05" value="1.0" class="w-[60%] feed-z-thumb">
+            </div>
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-gray-400">Phase Delay (deg)</span>
+                <div class="flex items-center gap-2 w-[60%]">
+                    <input type="range" id="sl-ph-z" min="-180" max="180" step="5" value="-90"
+                        class="w-full feed-z-thumb">
+                    <input type="number" id="inp-ph-z" value="-90" class="w-12 !border-green-800 text-[10px]">
+                </div>
+            </div>
+        </div>
+
+        <div class="border-t border-blue-900/50 pt-3 space-y-3">
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-gray-300 font-bold">Total Voxel Particles</span>
+                <div class="flex items-center gap-2">
+                    <input type="number" id="inp-voxels" value="200000" min="10000" max="3000000" step="10000"
+                        class="w-24 text-[11px] text-blue-200">
+                    <button id="btn-apply-pts"
+                        class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[10px] font-bold">SET</button>
+                </div>
+            </div>
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-gray-400">Voxel Radius</span>
+                <div class="flex items-center gap-2 w-[60%]">
+                    <input type="range" id="sl-radius" min="2" max="80" step="1" value="55" class="w-full">
+                    <input type="number" id="inp-radius" value="55" step="1" class="w-12 !border-blue-800 text-[10px]">
+                </div>
+            </div>
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-gray-400">Simulation Brightness</span>
+                <div class="flex items-center gap-2 w-[60%]">
+                    <input type="range" id="sl-bright" min="0.1" max="40.0" step="0.5" value="8.0" class="w-full">
+                    <input type="number" id="inp-bright" value="8.0" step="0.5"
+                        class="w-12 !border-blue-800 text-[10px]">
+                </div>
+            </div>
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-gray-400">Dynamic Range Glow</span>
+                <div class="flex items-center gap-2 w-[60%]">
+                    <input type="range" id="sl-dyn" min="0.1" max="4.0" step="0.1" value="1.5" class="w-full">
+                    <input type="number" id="inp-dyn" value="1.5" step="0.1" class="w-12 !border-blue-800 text-[10px]">
+                </div>
+            </div>
+            <div class="flex justify-between items-center ml-1">
+                <span class="text-gray-400">Animation Speed</span>
+                <div class="flex items-center gap-2 w-[60%]">
+                    <input type="range" id="sl-speed" min="0.5" max="30.0" step="0.5" value="12.0" class="w-full">
+                    <input type="number" id="inp-speed" value="12.0" step="0.5" class="w-12 !border-blue-800 text-[10px]">
+                </div>
+            </div>
+            <div class="flex justify-between items-center mt-2 border-t border-blue-900/30 pt-3">
+                <span class="text-gray-400 font-bold">Show 1D Central Helix Trace</span>
+                <input type="checkbox" id="chk-traces" checked class="w-4 h-4 cursor-pointer accent-blue-500">
+            </div>
+            <div class="flex justify-between items-center mt-2 border-t border-blue-900/30 pt-3">
+                <span class="text-gray-400 font-bold">Show Detailed Element Layers</span>
+                <input type="checkbox" id="chk-detailed" class="w-4 h-4 cursor-pointer accent-purple-500">
+            </div>
+        </div>
+
+        <div class="mt-1 pt-2 border-t border-blue-900/50 text-center text-gray-500 text-[10px]">
+            Left Click: Orbit | Right Click: Pan | Scroll: Zoom<br>
+            <span class="text-indigo-400 font-bold"><i>Zoom inside the patch to view the realistic L-probes
+                    pulsing.</i></span>
+        </div>
+    </div>
+
+    <div
+        class="absolute bottom-6 left-1/2 transform -translate-x-1/2 ui-panel p-3 rounded-lg w-[500px] text-center shadow-xl">
+        <div class="text-[10px] text-gray-400 uppercase tracking-widest mb-2 font-bold">Electric Field Pos/Neg Vector
+            Polarity</div>
+        <div class="flex justify-around text-[12px] font-bold">
+            <span class="text-red-500">+X (Horiz)</span>
+            <span class="text-cyan-400">-X (Horiz)</span>
+            <span class="text-green-500">+Z (Vert)</span>
+            <span class="text-fuchsia-400">-Z (Vert)</span>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+        // --- HARDWARE & ENGINE CONSTANTS ---
+        const SPACING = 3.6;
+        const WAVELENGTH = SPACING * 2.0; // Strictly locked for physics accuracy
+        const MAX_ELEMENTS = 37; // Center + 3 Rings
+
+        const state = {
+            ax: 1.0, px: 0, onX: true,
+            az: 1.0, pz: -90, onZ: true,
+            brightness: 8.0, dynRange: 1.5, showTraces: true,
+            fullArray: false, voxelCount: 200000,
+            time: 0, speed: 12.0, radius: 55.0,
+            showDetailedLayers: false
+        };
+
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x03050a, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 800);
+        camera.position.set(16, 12, 20);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.9;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; controls.dampingFactor = 0.05;
+        controls.target.set(0, 1, 0);
+        controls.maxPolarAngle = Math.PI / 2 + 0.1;
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        composer.addPass(new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.5, 0.6));
+
+        // --- HARDWARE GEOMETRY GENERATOR (Hyper-Realistic Starlink Patch) ---
+        const R_PATCH = 1.45;
+        const N_WIDTH = 0.45;
+        const N_DEPTH = 0.65; // Deep notches matching teardowns
+        const PATCH_THICKNESS = 0.1;
+
+        function createStarlinkPatch() {
+            const shape = new THREE.Shape();
+            const w = N_WIDTH / 2;
+            const rIn = R_PATCH - N_DEPTH;
+            const xEdge = Math.sqrt(R_PATCH * R_PATCH - w * w);
+
+            for (let i = 0; i < 4; i++) {
+                const angle = i * Math.PI / 2;
+                const rot = (x, y, a) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+
+                const [x1, y1] = rot(rIn, -w, angle);
+                const [x2, y2] = rot(rIn, w, angle);
+                const [x3, y3] = rot(xEdge, w, angle);
+
+                if (i === 0) shape.moveTo(x1, y1); else shape.lineTo(x1, y1);
+
+                shape.lineTo(x2, y2);
+                shape.lineTo(x3, y3);
+
+                const startAngle = angle + Math.asin(w / R_PATCH);
+                const endAngle = angle + Math.PI / 2 - Math.asin(w / R_PATCH);
+                shape.absarc(0, 0, R_PATCH, startAngle, endAngle, false);
+            }
+
+            // Highly rounded edges mimicking stamped thick copper
+            return new THREE.ExtrudeGeometry(shape, {
+                depth: PATCH_THICKNESS, bevelEnabled: true, bevelSegments: 6, steps: 1, bevelSize: 0.05, bevelThickness: 0.05
+            });
+        }
+
+        // --- H-SLOT COUPLING LAYER ---
+        // Ground plane with two perpendicular H-shaped apertures for coupling energy
+        // from the feed network up to the circular patch above. Sits between feed wires and patches.
+        const HSLOT_Y = 0.15;
+        const HSLOT_THICKNESS = 0.12;
+        const HSLOT_SIZE = R_PATCH * 1.15; // slightly larger than patch footprint
+
+        function createHSlotLayer() {
+            const shape = new THREE.Shape();
+            // Outer boundary — circular ground plane
+            const outerR = HSLOT_SIZE;
+            const segments = 64;
+            for (let i = 0; i <= segments; i++) {
+                const a = (i / segments) * Math.PI * 2;
+                const x = outerR * Math.cos(a);
+                const y = outerR * Math.sin(a);
+                if (i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+            }
+
+            // H-slot parameters
+            const slotLen = R_PATCH * 0.85;  // total length of the H
+            const slotW = 0.12;              // narrow center bar width
+            const capW = 0.35;               // wider end-cap width
+            const capLen = 0.30;             // end-cap length along slot axis
+
+            // Cut two perpendicular H-slots as holes
+            function makeHSlotHole(rotAngle) {
+                const hole = new THREE.Path();
+                // Build H shape: two end-caps connected by narrow bar
+                // Points go clockwise for a hole
+                const hw = slotW / 2;
+                const hc = capW / 2;
+                const hl = slotLen / 2;
+                const cl = capLen / 2;
+
+                // 16 points forming the H outline
+                const pts = [
+                    // Bottom cap (left side)
+                    [-hl, -hc],
+                    [-hl, hc],
+                    [-hl + capLen, hc],
+                    [-hl + capLen, hw],
+                    // Narrow bar to top cap
+                    [hl - capLen, hw],
+                    [hl - capLen, hc],
+                    // Top cap
+                    [hl, hc],
+                    [hl, -hc],
+                    [hl - capLen, -hc],
+                    [hl - capLen, -hw],
+                    // Narrow bar back
+                    [-hl + capLen, -hw],
+                    [-hl + capLen, -hc],
+                ];
+
+                // Apply rotation
+                const cosA = Math.cos(rotAngle);
+                const sinA = Math.sin(rotAngle);
+                const rPts = pts.map(([x, y]) => [x * cosA - y * sinA, x * sinA + y * cosA]);
+
+                hole.moveTo(rPts[0][0], rPts[0][1]);
+                for (let i = 1; i < rPts.length; i++) hole.lineTo(rPts[i][0], rPts[i][1]);
+                hole.closePath();
+                return hole;
+            }
+
+            // X-axis H-slot (horizontal)
+            shape.holes.push(makeHSlotHole(0));
+            // Z-axis H-slot (vertical, rotated 90°)
+            shape.holes.push(makeHSlotHole(Math.PI / 2));
+
+            const geo = new THREE.ExtrudeGeometry(shape, {
+                depth: HSLOT_THICKNESS, bevelEnabled: false
+            });
+            geo.rotateX(-Math.PI / 2);
+            return geo;
+        }
+
+        // --- CIRCULAR COUPLING PATCH ---
+        // Circular copper disc sitting between the H-slot ground plane and the
+        // crossed-slot (notched) patch above. Energy couples through H-slots into this patch.
+        const CIRC_PATCH_Y = 0.35;
+        const CIRC_PATCH_R = R_PATCH * 0.92; // slightly smaller than the crossed-slot patch
+        const CIRC_PATCH_THICKNESS = 0.08;
+
+        function createCircularPatch() {
+            const geo = new THREE.CylinderGeometry(CIRC_PATCH_R, CIRC_PATCH_R, CIRC_PATCH_THICKNESS, 64);
+            return geo;
+        }
+
+        const hSlotGeo = createHSlotLayer();
+        const circPatchGeo = createCircularPatch();
+
+        const hardwareGroup = new THREE.Group();
+        scene.add(hardwareGroup);
+
+        const copperMat = new THREE.MeshStandardMaterial({ color: 0xcb6d51, roughness: 0.8, metalness: 0.6 });
+        const neighborCopperMat = new THREE.MeshStandardMaterial({ color: 0x8a4b33, roughness: 0.85, metalness: 0.5 });
+
+        // H-slot coupling layer material — visible olive/bronze ground plane
+        const hSlotMat = new THREE.MeshStandardMaterial({ color: 0x3d5a3d, roughness: 0.7, metalness: 0.4 });
+        // Circular coupling patch — slightly different copper to distinguish from crossed slot above
+        const circPatchMat = new THREE.MeshStandardMaterial({ color: 0xb8623f, roughness: 0.65, metalness: 0.65 });
+        const circPatchNeighborMat = new THREE.MeshStandardMaterial({ color: 0x7d4530, roughness: 0.75, metalness: 0.55 });
+
+        const substrate = new THREE.Mesh(
+            new THREE.BoxGeometry(35, 0.4, 35),
+            new THREE.MeshPhysicalMaterial({ color: 0x050a0f, roughness: 0.9, metalness: 0.1 })
+        );
+        substrate.position.y = -0.3;
+        hardwareGroup.add(substrate);
+
+        const patchGeo = createStarlinkPatch();
+        patchGeo.rotateX(-Math.PI / 2);
+
+        // Realistic L-Probe Via Pins injecting into the notches
+        function createLProbe(targetX, targetZ) {
+            const isX = Math.abs(targetX) > 0;
+            const sign = isX ? Math.sign(targetX) : Math.sign(targetZ);
+
+            // Via hole comes up slightly outside the inner notch edge
+            const startX = isX ? targetX + sign * 0.4 : 0;
+            const startZ = isX ? 0 : targetZ + sign * 0.4;
+
+            const path = new THREE.CurvePath();
+            // Vertical rise from FR4 PCB
+            path.add(new THREE.LineCurve3(new THREE.Vector3(startX, -0.6, startZ), new THREE.Vector3(startX, 0.0, startZ)));
+
+            // Sharp realistic 90-degree bend into the notch
+            path.add(new THREE.QuadraticBezierCurve3(
+                new THREE.Vector3(startX, 0.0, startZ),
+                new THREE.Vector3(startX, 0.04, startZ),
+                new THREE.Vector3(targetX, 0.04, targetZ)
+            ));
+
+            const geo = new THREE.TubeGeometry(path, 16, 0.04, 12, false);
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0x333340, emissiveIntensity: 1.0, roughness: 0.7, metalness: 0.5
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.matRef = mat;
+            return mesh;
+        }
+
+        const elementsPos = [];
+        window.allFeeds = [];
+
+        for (let q = -3; q <= 3; q++) {
+            for (let r = -3; r <= 3; r++) {
+                if (Math.abs(q + r) > 3) continue;
+                elementsPos.push(new THREE.Vector2(SPACING * (q + r / 2), SPACING * (r * Math.sqrt(3) / 2)));
+            }
+        }
+        elementsPos.sort((a, b) => a.length() - b.length()); // Center element is idx 0
+
+        elementsPos.forEach((pos, idx) => {
+            const isCenter = (idx === 0);
+            const patch = new THREE.Mesh(patchGeo, isCenter ? copperMat : neighborCopperMat);
+            const CROSSED_SLOT_Y = state.showDetailedLayers ? 0.55 : 0;
+            patch.position.set(pos.x, CROSSED_SLOT_Y, pos.y);
+            hardwareGroup.add(patch);
+
+            const fX = createLProbe(R_PATCH - N_DEPTH, 0);
+            const fZ = createLProbe(0, R_PATCH - N_DEPTH);
+            fX.position.set(pos.x, 0, pos.y);
+            fZ.position.set(pos.x, 0, pos.y);
+
+            // --- Detailed layers: H-slot coupling plane & circular patch ---
+            const hSlot = new THREE.Mesh(hSlotGeo, hSlotMat);
+            hSlot.position.set(pos.x, HSLOT_Y, pos.y);
+            hSlot.visible = false; // hidden by default
+            hardwareGroup.add(hSlot);
+
+            const circPatch = new THREE.Mesh(circPatchGeo, isCenter ? circPatchMat : circPatchNeighborMat);
+            circPatch.position.set(pos.x, CIRC_PATCH_Y, pos.y);
+            circPatch.visible = false; // hidden by default
+            hardwareGroup.add(circPatch);
+
+            if (!isCenter) { patch.visible = false; fX.visible = false; fZ.visible = false; }
+
+            hardwareGroup.add(fX, fZ);
+            window.allFeeds.push({ patch, fX, fZ, hSlot, circPatch, isCenter });
+        });
+
+        const grid = new THREE.GridHelper(60, 60, 0x1e293b, 0x050a11);
+        grid.position.y = -0.55;
+        scene.add(grid);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 25, 10);
+        scene.add(dirLight);
+        const fillLight = new THREE.DirectionalLight(0xaaccff, 0.5);
+        fillLight.position.set(-10, 15, -10);
+        scene.add(fillLight);
+
+        // --- VOLUMETRIC SUPERPOSITION SHADER (Interference Engine) ---
+        let waveSystem, ptsGeo, waveMat;
+
+        function buildPointCloud(count, radius) {
+            if (radius === undefined) radius = state.radius;
+            if (waveSystem) {
+                scene.remove(waveSystem);
+                ptsGeo.dispose();
+                waveMat.dispose();
+            }
+
+            ptsGeo = new THREE.BufferGeometry();
+            const ptsPos = new Float32Array(count * 3);
+
+            for (let i = 0; i < count; i++) {
+                const u = Math.random(); const v = Math.random(); const w = Math.random();
+                const theta = u * 2.0 * Math.PI;
+                const phi = Math.acos(v); // Isometric Hemisphere
+                const r = radius * Math.cbrt(w);
+
+                ptsPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                ptsPos[i * 3 + 1] = r * Math.cos(phi);
+                ptsPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+            }
+            ptsGeo.setAttribute('position', new THREE.BufferAttribute(ptsPos, 3));
+
+            const waveVertexShader = `
+                varying vec3 vPos;
+                varying float vEx;
+                varying float vEz;
+                varying float vMag;
+
+                uniform float u_time;
+                uniform float u_Ax;
+                uniform float u_Az;
+                uniform float u_Px;
+                uniform float u_Pz;
+                uniform float u_k; 
+                uniform float u_w; 
+                
+                uniform int u_numElements;
+                uniform vec2 u_elements[37];
+
+                void main() {
+                    vec3 p0 = position;
+                    float phaseOffset = u_w * u_time;
+                    
+                    vec3 finalE = vec3(0.0);
+
+                    // Physics Loop: Exact Constructive/Destructive Interference Superposition
+                    for(int i = 0; i < 37; i++) {
+                        if(i >= u_numElements) break;
+                        
+                        vec3 e_pos = vec3(u_elements[i].x, 0.0, u_elements[i].y);
+                        vec3 r_vec = p0 - e_pos;
+                        float d = length(r_vec);
+                        
+                        float phase = u_k * d - phaseOffset;
+                        
+                        vec3 d_hat = r_vec / max(d, 0.001);
+                        float atten = max(0.0, d_hat.y) / (1.0 + d * 0.1);
+                        
+                        vec3 E_src = vec3(u_Ax * cos(phase + u_Px), 0.0, u_Az * cos(phase + u_Pz));
+                        vec3 E_trans = E_src - dot(E_src, d_hat) * d_hat; // Electromagnetic Transverse wave filter
+                        
+                        finalE += E_trans * atten;
+                    }
+
+                    // Scale down visually based on array size to prevent instant blowout
+                    finalE /= sqrt(float(u_numElements));
+
+                    // Physical displacement vibrating voxels dynamically
+                    vec3 finalPos = p0 + finalE * 4.0;
+                    vPos = finalPos;
+                    
+                    vEx = finalE.x;
+                    vEz = finalE.z;
+                    vMag = length(finalE);
+
+                    vec4 mvPosition = modelViewMatrix * vec4(finalPos, 1.0);
+                    gl_PointSize = (32.0 / -mvPosition.z) * (0.2 + vMag);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `;
+
+            const waveFragmentShader = `
+                uniform float u_brightness;
+                uniform float u_dynRange;
+                uniform float u_rMax;
+                uniform float u_voxelScale;
+
+                varying vec3 vPos;
+                varying float vEx;
+                varying float vEz;
+                varying float vMag;
+
+                void main() {
+                    vec2 pt = gl_PointCoord - vec2(0.5);
+                    if(dot(pt, pt) > 0.25) discard;
+
+                    // Pos/Neg Hardware Vector Mappings
+                    vec3 colorEx = vEx > 0.0 ? vec3(1.0, 0.1, 0.1) : vec3(0.1, 0.8, 1.0); 
+                    vec3 colorEz = vEz > 0.0 ? vec3(0.1, 1.0, 0.1) : vec3(0.8, 0.1, 1.0); 
+
+                    vec3 colorAcc = abs(vEx) * colorEx + abs(vEz) * colorEz;
+                    vec3 finalColor = colorAcc / (max(abs(vEx), abs(vEz)) + 0.0001);
+
+                    float fade = smoothstep(u_rMax, u_rMax * 0.4, length(vPos)); 
+                    float alpha = pow(vMag, u_dynRange) * u_brightness * fade * u_voxelScale;
+                    
+                    gl_FragColor = vec4(finalColor, alpha);
+                }
+            `;
+
+            waveMat = new THREE.ShaderMaterial({
+                vertexShader: waveVertexShader,
+                fragmentShader: waveFragmentShader,
+                uniforms: {
+                    u_time: { value: 0 },
+                    u_Ax: { value: state.ax },
+                    u_Az: { value: state.az },
+                    u_Px: { value: state.px * Math.PI / 180 },
+                    u_Pz: { value: state.pz * Math.PI / 180 },
+                    u_k: { value: 2.0 * Math.PI / WAVELENGTH },
+                    u_w: { value: state.speed },
+                    u_brightness: { value: state.brightness },
+                    u_dynRange: { value: state.dynRange },
+                    u_rMax: { value: radius },
+                    u_numElements: { value: state.fullArray ? MAX_ELEMENTS : 1 },
+                    u_elements: { value: elementsPos },
+                    u_voxelScale: { value: 150000.0 / count } // Auto-balances massive cloud opacities
+                },
+                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+            });
+
+            waveSystem = new THREE.Points(ptsGeo, waveMat);
+            scene.add(waveSystem);
+        }
+
+        buildPointCloud(state.voxelCount);
+
+        // --- CENTRAL 1D VECTOR TRACE ---
+        const waveSegments = 1200;
+        const coreWaveGeo = new THREE.BufferGeometry();
+        const coreWavePos = new Float32Array((waveSegments + 1) * 3);
+        const coreWaveColors = new Float32Array((waveSegments + 1) * 3);
+        coreWaveGeo.setAttribute('position', new THREE.BufferAttribute(coreWavePos, 3));
+        coreWaveGeo.setAttribute('color', new THREE.BufferAttribute(coreWaveColors, 3));
+        const coreWaveMat = new THREE.LineBasicMaterial({ vertexColors: true, linewidth: 4 });
+        const coreWave = new THREE.Line(coreWaveGeo, coreWaveMat);
+        scene.add(coreWave);
+
+        // --- UI & LOGIC BINDINGS ---
+        function updateUniforms() {
+            if (!waveSystem) return;
+            waveSystem.material.uniforms.u_Ax.value = state.onX ? state.ax : 0.0;
+            waveSystem.material.uniforms.u_Az.value = state.onZ ? state.az : 0.0;
+            waveSystem.material.uniforms.u_Px.value = state.px * Math.PI / 180;
+            waveSystem.material.uniforms.u_Pz.value = state.pz * Math.PI / 180;
+            waveSystem.material.uniforms.u_brightness.value = state.brightness;
+            waveSystem.material.uniforms.u_dynRange.value = state.dynRange;
+            waveSystem.material.uniforms.u_w.value = state.speed;
+            waveSystem.material.uniforms.u_rMax.value = state.radius;
+            waveSystem.material.uniforms.u_numElements.value = state.fullArray ? MAX_ELEMENTS : 1;
+        }
+
+        function updatePhysicsStatus() {
+            let eX = state.onX ? state.ax : 0;
+            let eZ = state.onZ ? state.az : 0;
+            let status = "OFFLINE"; let color = "#6b7280";
+
+            if (eX === 0 && eZ === 0) { status = "Idle (No Transmission)"; }
+            else if (eX === 0) { status = "Vertical Linear (Z-axis)"; color = "#22c55e"; }
+            else if (eZ === 0) { status = "Horizontal Linear (X-axis)"; color = "#ef4444"; }
+            else {
+                let dP = (state.pz - state.px) % 360;
+                if (dP < 0) dP += 360;
+
+                if (Math.abs(eX - eZ) < 0.05) {
+                    if (Math.abs(dP - 90) < 5) { status = "Left Circular (LCP)"; color = "#60a5fa"; }
+                    else if (Math.abs(dP - 270) < 5 || Math.abs(dP + 90) < 5) { status = "Right Circular (RCP)"; color = "#c084fc"; }
+                    else if (Math.abs(dP - 0) < 5 || Math.abs(dP - 180) < 5) { status = "Slant Linear (45°)"; color = "#fcd34d"; }
+                    else { status = "Elliptical Polarization"; color = "#a78bfa"; }
+                } else {
+                    if (Math.abs(dP - 0) < 5 || Math.abs(dP - 180) < 5) { status = "Slant Linear"; color = "#fcd34d"; }
+                    else { status = "Elliptical Polarization"; color = "#a78bfa"; }
+                }
+            }
+            const el = document.getElementById('pol-status');
+            el.innerText = status; el.style.color = color;
+        }
+
+        function syncSlider(slId, inpId, callback) {
+            const sl = document.getElementById(slId); const inp = document.getElementById(inpId);
+            if (sl && inp) {
+                sl.oninput = (e) => { inp.value = parseFloat(e.target.value).toFixed(sl.step.includes('.') ? sl.step.split('.')[1].length : 0); callback(parseFloat(e.target.value)); };
+                inp.onchange = (e) => { let v = parseFloat(e.target.value); if (v < sl.min) v = sl.min; if (v > sl.max) v = sl.max; sl.value = v; inp.value = v.toFixed(sl.step.includes('.') ? sl.step.split('.')[1].length : 0); callback(v); };
+            } else if (sl) { sl.oninput = (e) => { callback(parseFloat(e.target.value)); }; }
+        }
+
+        const notifyEngine = () => { updateUniforms(); updatePhysicsStatus(); document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active')); };
+
+        document.getElementById('btn-toggle-array').onclick = (e) => {
+            state.fullArray = !state.fullArray;
+            e.target.innerText = state.fullArray ? "Disable Array (Center Element Only)" : "Power All Elements (Array Mode)";
+            e.target.classList.toggle('active', state.fullArray);
+
+            const arrStatus = document.getElementById('arr-status');
+            arrStatus.innerText = state.fullArray ? `Array Mode ON (37 Elements)` : `Single Element`;
+            arrStatus.className = state.fullArray ? "text-green-400 font-bold" : "text-gray-400";
+
+            // Toggle visibility and material logic of hardware patches and feeds
+            window.allFeeds.forEach(item => {
+                if (!item.isCenter) {
+                    item.patch.visible = state.fullArray;
+                    item.patch.material = state.fullArray ? copperMat : neighborCopperMat;
+                    item.fX.visible = state.fullArray;
+                    item.fZ.visible = state.fullArray;
+                    // Sync detailed layers for neighbor elements
+                    item.hSlot.visible = state.fullArray && state.showDetailedLayers;
+                    item.circPatch.visible = state.fullArray && state.showDetailedLayers;
+                }
+            });
+
+            // Adjust brightness automatically to handle massive power increase smoothly
+            if (state.fullArray) {
+                state.brightness = Math.max(0.5, state.brightness * 0.3);
+            } else {
+                state.brightness = Math.min(40.0, state.brightness * 3.3);
+            }
+            document.getElementById('sl-bright').value = state.brightness;
+            document.getElementById('inp-bright').value = state.brightness.toFixed(1);
+
+            updateUniforms();
+        };
+
+        document.getElementById('btn-apply-pts').onclick = () => {
+            let v = parseInt(document.getElementById('inp-voxels').value);
+            if (v < 10000) v = 10000;
+            document.getElementById('inp-voxels').value = v;
+            state.voxelCount = v;
+            buildPointCloud(v);
+        };
+
+        syncSlider('sl-amp-x', null, v => { state.ax = v; notifyEngine(); });
+        syncSlider('sl-ph-x', 'inp-ph-x', v => { state.px = v; notifyEngine(); });
+        document.getElementById('chk-x-on').onchange = (e) => {
+            state.onX = e.target.checked;
+            document.getElementById('sl-amp-x').disabled = !state.onX; document.getElementById('sl-ph-x').disabled = !state.onX; document.getElementById('inp-ph-x').disabled = !state.onX; notifyEngine();
+        };
+
+        syncSlider('sl-amp-z', null, v => { state.az = v; notifyEngine(); });
+        syncSlider('sl-ph-z', 'inp-ph-z', v => { state.pz = v; notifyEngine(); });
+        document.getElementById('chk-z-on').onchange = (e) => {
+            state.onZ = e.target.checked;
+            document.getElementById('sl-amp-z').disabled = !state.onZ; document.getElementById('sl-ph-z').disabled = !state.onZ; document.getElementById('inp-ph-z').disabled = !state.onZ; notifyEngine();
+        };
+
+        syncSlider('sl-bright', 'inp-bright', v => { state.brightness = v; updateUniforms(); });
+        syncSlider('sl-dyn', 'inp-dyn', v => { state.dynRange = v; updateUniforms(); });
+        syncSlider('sl-speed', 'inp-speed', v => { state.speed = v; updateUniforms(); });
+        syncSlider('sl-radius', 'inp-radius', v => { state.radius = v; buildPointCloud(state.voxelCount, v); updateUniforms(); });
+
+        document.getElementById('chk-traces').onchange = (e) => { state.showTraces = e.target.checked; coreWave.visible = state.showTraces; };
+
+        document.getElementById('chk-detailed').onchange = (e) => {
+            state.showDetailedLayers = e.target.checked;
+            const patchY = state.showDetailedLayers ? 0.55 : 0;
+            window.allFeeds.forEach(item => {
+                const shouldShow = state.showDetailedLayers && (item.isCenter || state.fullArray);
+                item.hSlot.visible = shouldShow;
+                item.circPatch.visible = shouldShow;
+                // Shift the crossed-slot patch up when layers are shown
+                item.patch.position.y = patchY;
+            });
+        };
+
+        window.applyPreset = function (type) {
+            document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[data-preset="${type}"]`).classList.add('active');
+
+            state.onX = true; state.onZ = true;
+            if (type === 'H') { state.ax = 1.0; state.px = 0; state.az = 0.0; state.pz = 0; state.onZ = false; }
+            else if (type === 'V') { state.ax = 0.0; state.px = 0; state.az = 1.0; state.pz = 0; state.onX = false; }
+            else if (type === 'SLANT') { state.ax = 1.0; state.px = 0; state.az = 1.0; state.pz = 0; }
+            else if (type === 'RCP') { state.ax = 1.0; state.px = 0; state.az = 1.0; state.pz = -90; }
+            else if (type === 'LCP') { state.ax = 1.0; state.px = 0; state.az = 1.0; state.pz = 90; }
+
+            document.getElementById('chk-x-on').checked = state.onX; document.getElementById('chk-z-on').checked = state.onZ;
+            document.getElementById('sl-amp-x').value = state.ax; document.getElementById('sl-amp-z').value = state.az;
+            document.getElementById('sl-ph-x').value = state.px; document.getElementById('inp-ph-x').value = state.px;
+            document.getElementById('sl-ph-z').value = state.pz; document.getElementById('inp-ph-z').value = state.pz;
+
+            document.getElementById('sl-amp-x').disabled = !state.onX; document.getElementById('sl-ph-x').disabled = !state.onX; document.getElementById('inp-ph-x').disabled = !state.onX;
+            document.getElementById('sl-amp-z').disabled = !state.onZ; document.getElementById('sl-ph-z').disabled = !state.onZ; document.getElementById('inp-ph-z').disabled = !state.onZ;
+
+            updateUniforms(); updatePhysicsStatus();
+        };
+
+        // --- MAIN RENDER LOOP ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            const dt = clock.getDelta();
+            state.time += dt;
+            if (waveSystem) waveSystem.material.uniforms.u_time.value = state.time;
+
+            const effAx = state.onX ? state.ax : 0.0;
+            const effAz = state.onZ ? state.az : 0.0;
+
+            // Trace 1D core wave - boost magnitude in array mode visually
+            if (state.showTraces && coreWave) {
+                const positions = coreWave.geometry.attributes.position.array;
+                const colors = coreWave.geometry.attributes.color.array;
+                const arrayGainScale = state.fullArray ? Math.sqrt(37) : 1.0;
+                const k = 2.0 * Math.PI / WAVELENGTH;
+                const baseT = state.speed * state.time;
+
+                for (let i = 0; i <= waveSegments; i++) {
+                    const y = (i / waveSegments) * state.radius;
+                    const phaseX = k * y - baseT + state.px * Math.PI / 180;
+                    const phaseZ = k * y - baseT + state.pz * Math.PI / 180;
+
+                    const ex = effAx * Math.cos(phaseX) * arrayGainScale;
+                    const ez = effAz * Math.cos(phaseZ) * arrayGainScale;
+
+                    const atten = 1.0 / (1.0 + y * 0.15);
+                    const dispScale = state.fullArray ? 4.0 / Math.sqrt(37) : 4.0;
+                    positions[i * 3] = ex * dispScale * atten;
+                    const traceYOffset = state.showDetailedLayers ? 0.55 + PATCH_THICKNESS : PATCH_THICKNESS;
+                    positions[i * 3 + 1] = y + traceYOffset;
+                    positions[i * 3 + 2] = ez * dispScale * atten;
+
+                    const absX = Math.abs(ex); const absZ = Math.abs(ez);
+                    const maxVal = absX + absZ + 0.0001;
+                    const cEx = ex > 0 ? [1.0, 0.1, 0.1] : [0.1, 0.8, 1.0];
+                    const cEz = ez > 0 ? [0.1, 1.0, 0.1] : [0.8, 0.1, 1.0];
+
+                    colors[i * 3] = (absX * cEx[0] + absZ * cEz[0]) / maxVal;
+                    colors[i * 3 + 1] = (absX * cEx[1] + absZ * cEz[1]) / maxVal;
+                    colors[i * 3 + 2] = (absX * cEx[2] + absZ * cEz[2]) / maxVal;
+                }
+                coreWave.geometry.attributes.position.needsUpdate = true;
+                coreWave.geometry.attributes.color.needsUpdate = true;
+            }
+
+            // Pulsing Copper Pins mapped to instantaneous AC injection voltage
+            if (window.allFeeds) {
+                const baseT = state.speed * state.time;
+                const pX = state.px * Math.PI / 180;
+                const pZ = state.pz * Math.PI / 180;
+
+                window.allFeeds.forEach(item => {
+                    if (!item.fX.visible && !item.isCenter) return; // Ignore invisible
+
+                    const instX = effAx * Math.cos(-baseT + pX);
+                    const absX = Math.abs(instX);
+                    const iX = Math.pow(absX, 1.5) * 5.0; // Exponential pulse curve
+
+                    if (instX >= 0) item.fX.matRef.emissive.setRGB(iX, 0, 0);
+                    else item.fX.matRef.emissive.setRGB(0, iX * 0.7, iX);
+
+                    const instZ = effAz * Math.cos(-baseT + pZ);
+                    const absZ = Math.abs(instZ);
+                    const iZ = Math.pow(absZ, 1.5) * 5.0;
+
+                    if (instZ >= 0) item.fZ.matRef.emissive.setRGB(0, iZ, 0);
+                    else item.fZ.matRef.emissive.setRGB(iZ * 0.8, 0, iZ);
+                });
+            }
+
+            composer.render();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        updateUniforms(); updatePhysicsStatus(); animate();
+
+    </script>
+</body>
+
+</html>

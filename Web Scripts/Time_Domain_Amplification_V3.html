@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RF Signal Lab — Time Domain Amplification Simulator</title>
+    <meta name="description"
+        content="Interactive time-domain RF amplifier simulation with Class A, AB, Doherty, C, E, F models.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        :root {
+            --bg-primary: #171717;
+            --bg-elevated: #1f1f1f;
+            --bg-surface: #252525;
+            --border-subtle: #333;
+            --border-medium: #444;
+            --text-primary: #e5e5e5;
+            --text-secondary: #a3a3a3;
+            --text-muted: #737373;
+            --accent-blue: #38bdf8;
+            --accent-green: #4ade80;
+            --accent-red: #ef4444;
+            --accent-yellow: #facc15;
+            --accent-purple: #a78bfa;
+            --accent-orange: #fb923c;
+            --accent-pink: #f472b6;
+            --accent-cyan: #22d3ee;
+            --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Consolas', monospace
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-ui);
+            overflow-y: auto;
+            height: 100vh;
+            padding: 24px
+        }
+
+        .app-container {
+            max-width: 1800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px
+        }
+
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-subtle)
+        }
+
+        .app-header h1 {
+            font-size: 1.375rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            letter-spacing: -0.02em
+        }
+
+        .app-header .subtitle {
+            font-size: .75rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+            font-weight: 400
+        }
+
+        .header-status {
+            text-align: right;
+            font-size: .6875rem;
+            color: var(--text-muted);
+            font-family: var(--font-mono)
+        }
+
+        .header-status .live {
+            color: var(--accent-green);
+            font-weight: 600
+        }
+
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: var(--bg-elevated);
+            border-radius: 10px;
+            border: 1px solid var(--border-subtle);
+            flex-wrap: wrap
+        }
+
+        .mode-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            flex-shrink: 0
+        }
+
+        .mode-group label {
+            font-size: .625rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: var(--text-muted);
+            font-weight: 600
+        }
+
+        .mode-buttons {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap
+        }
+
+        .btn-mode {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: .6875rem;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .15s ease;
+            white-space: nowrap
+        }
+
+        .btn-mode:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary)
+        }
+
+        .btn-mode.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #000;
+            font-weight: 600
+        }
+
+        .btn-amp {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: .6875rem;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .15s ease;
+            white-space: nowrap
+        }
+
+        .btn-amp:hover {
+            border-color: var(--accent-cyan);
+            color: var(--text-primary)
+        }
+
+        .btn-amp.active {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: #000;
+            font-weight: 600
+        }
+
+        .control-group {
+            background: var(--bg-surface);
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-subtle);
+            min-width: 120px;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0
+        }
+
+        .control-group.hidden,
+        .mode-group.hidden {
+            display: none
+        }
+
+        .control-group .ctrl-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: .625rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            font-weight: 600;
+            margin-bottom: 4px
+        }
+
+        .control-group input[type="number"] {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            border-radius: 4px;
+            padding: 2px 4px;
+            font-family: var(--font-mono);
+            font-size: .6875rem;
+            width: 64px;
+            text-align: right
+        }
+
+        .control-group input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent-blue)
+        }
+
+        .control-group input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: var(--border-subtle);
+            border-radius: 2px;
+            outline: none;
+            margin-top: 4px
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: currentColor;
+            cursor: pointer;
+            border: none
+        }
+
+        .ctrl-divider {
+            width: 1px;
+            height: 48px;
+            background: var(--border-subtle);
+            margin: 0 4px;
+            flex-shrink: 0
+        }
+
+        .viz-layout {
+            display: flex;
+            gap: 16px;
+            height: 480px;
+            min-height: 480px;
+            max-height: 480px
+        }
+
+        .viz-card {
+            background: var(--bg-elevated);
+            border-radius: 10px;
+            border: 1px solid var(--border-subtle);
+            overflow: hidden;
+            position: relative;
+            flex: 1;
+            min-width: 0
+        }
+
+        .viz-label {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            font-size: .625rem;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            pointer-events: auto;
+            padding: 3px 8px;
+            background: rgba(23, 23, 23, .85);
+            border-radius: 3px;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .viz-label.input-lbl {
+            border-left: 2px solid var(--accent-blue)
+        }
+
+        .viz-label.output-lbl {
+            border-left: 2px solid var(--accent-cyan)
+        }
+
+        select.mod-scale {
+            background: #171717;
+            color: var(--text-primary);
+            border: 1px solid var(--border-medium);
+            border-radius: 3px;
+            font-family: var(--font-mono);
+            font-size: .625rem;
+            padding: 2px 4px;
+            outline: none;
+            cursor: pointer
+        }
+
+        canvas {
+            display: block
+        }
+
+        .stats-panel {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            align-items: flex-end;
+            z-index: 2
+        }
+
+        .stat-box {
+            background: rgba(23, 23, 23, .9);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: .625rem;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            white-space: nowrap
+        }
+
+        .stat-box span {
+            font-weight: 700
+        }
+
+        .stat-box .val-green {
+            color: var(--accent-green)
+        }
+
+        .stat-box .val-red {
+            color: var(--accent-red)
+        }
+
+        .stat-box .val-yellow {
+            color: var(--accent-yellow)
+        }
+
+        .stat-box .val-cyan {
+            color: var(--accent-cyan)
+        }
+
+        .stat-box .val-orange {
+            color: var(--accent-orange)
+        }
+
+        .stat-box .val-purple {
+            color: var(--accent-purple)
+        }
+
+        .stat-box .val-blue {
+            color: var(--accent-blue)
+        }
+
+        .btn-ber {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: .6875rem;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .15s ease;
+            white-space: nowrap
+        }
+
+        .btn-ber:hover {
+            border-color: var(--accent-pink);
+            color: var(--text-primary)
+        }
+
+        .btn-ber.active {
+            background: var(--accent-pink);
+            border-color: var(--accent-pink);
+            color: #000;
+            font-weight: 600
+        }
+
+        .stat-box .val-pink {
+            color: var(--accent-pink)
+        }
+
+        .constellation-overlay {
+            position: absolute;
+            left: 10px;
+            bottom: 10px;
+            width: 160px;
+            height: 160px;
+            background: rgba(23, 23, 23, 0.92);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            z-index: 3;
+            display: none;
+        }
+
+        .constellation-overlay.visible {
+            display: block;
+        }
+
+        .constellation-label {
+            position: absolute;
+            top: 3px;
+            left: 6px;
+            font-size: .5rem;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            z-index: 4;
+            pointer-events: none;
+        }
+
+        .time-info {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 12px;
+            font-family: var(--font-mono);
+            font-size: .625rem;
+            color: var(--text-muted);
+        }
+
+        .time-info span {
+            color: var(--accent-yellow);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <div class="app-header">
+            <div>
+                <h1>Time Domain Amplification Simulator</h1>
+                <p class="subtitle">Class A / AB / Doherty / C / E / F — Signal Amplification & Efficiency Analysis</p>
+            </div>
+            <div class="header-status">
+                <p>Status: <span class="live">RUNNING</span></p>
+            </div>
+        </div>
+
+        <!-- Signal Controls -->
+        <div class="controls-bar">
+            <div class="mode-group"><label>Signal Type</label>
+                <div class="mode-buttons">
+                    <button class="btn-mode active" onclick="setSignalType('LFM')" id="btn-LFM">LFM</button>
+                    <button class="btn-mode" onclick="setSignalType('COMMS')" id="btn-COMMS">Comms</button>
+                    <button class="btn-mode" onclick="setSignalType('OFDM')" id="btn-OFDM">OFDM</button>
+                    <button class="btn-mode" onclick="setSignalType('MB_OFDM')" id="btn-MB_OFDM">MB OFDM</button>
+                    <button class="btn-mode" onclick="setSignalType('MB_COMMS')" id="btn-MB_COMMS">MB Comms</button>
+                </div>
+            </div>
+            <div class="ctrl-divider"></div>
+            <div class="control-group">
+                <div class="ctrl-label" style="color:var(--accent-blue)"><span>BW (GHz)</span><input type="number"
+                        id="ctrl-bw-num" value="2" step="any"></div>
+                <input type="range" id="ctrl-bw" value="2" min="0.01" max="10" step="0.1"
+                    style="color:var(--accent-blue)">
+            </div>
+            <div class="control-group">
+                <div class="ctrl-label" style="color:var(--accent-green)"><span>Duty (%)</span><input type="number"
+                        id="ctrl-duty-num" value="100" step="any"></div>
+                <input type="range" id="ctrl-duty" value="100" min="10" max="100" step="1"
+                    style="color:var(--accent-green)">
+            </div>
+            <div class="control-group">
+                <div class="ctrl-label" style="color:var(--accent-orange)"><span>Scroll Speed</span><input type="number"
+                        id="ctrl-tscale-num" value="1.0" step="any"></div>
+                <input type="range" id="ctrl-tscale" value="1.0" min="0.0" max="5.0" step="0.1"
+                    style="color:var(--accent-orange)">
+            </div>
+            <div class="control-group">
+                <div class="ctrl-label" style="color:var(--accent-red)"><span>DC Bias</span><input type="number"
+                        id="ctrl-dc-num" value="0.0" step="any"></div>
+                <input type="range" id="ctrl-dc" value="0.0" min="-5.0" max="5.0" step="0.1"
+                    style="color:var(--accent-red)">
+            </div>
+            <div class="control-group">
+                <div class="ctrl-label" style="color:var(--accent-orange)"><span>Carrier (GHz)</span><input
+                        type="number" id="ctrl-carrier-num" value="4" step="any"></div>
+                <input type="range" id="ctrl-carrier" value="4" min="0" max="20" step="0.1"
+                    style="color:var(--accent-orange)">
+            </div>
+            <div class="control-group lfm-only">
+                <div class="ctrl-label" style="color:var(--accent-pink)"><span>Pulse Width (us)</span><input
+                        type="number" id="ctrl-pw-num" value="1.0" step="any"></div>
+                <input type="range" id="ctrl-pw" value="1.0" min="0.1" max="100.0" step="0.1"
+                    style="color:var(--accent-pink)">
+            </div>
+            <div class="control-group ofdm-only hidden">
+                <div class="ctrl-label" style="color:var(--accent-purple)"><span>Sub BW (kHz)</span><input type="number"
+                        id="ctrl-subbw-num" value="200" step="any"></div>
+                <input type="range" id="ctrl-subbw" value="200" min="50" max="1000" step="50"
+                    style="color:var(--accent-purple)">
+            </div>
+            <div class="mode-group mod-only hidden"><label>Modulation</label>
+                <div class="mode-buttons">
+                    <button class="btn-mode active" onclick="setModulation('BPSK')" id="btn-mod-BPSK">BPSK</button>
+                    <button class="btn-mode" onclick="setModulation('QPSK')" id="btn-mod-QPSK">QPSK</button>
+                    <button class="btn-mode" onclick="setModulation('16QAM')" id="btn-mod-16QAM">16QAM</button>
+                    <button class="btn-mode" onclick="setModulation('64QAM')" id="btn-mod-64QAM">64QAM</button>
+                </div>
+            </div>
+            <div class="control-group mb-only hidden">
+                <div class="ctrl-label" style="color:var(--accent-yellow)"><span>Num Beams</span><input type="number"
+                        id="ctrl-beams-num" value="100" step="any"></div>
+                <input type="range" id="ctrl-beams" value="100" min="1" max="5000" step="1"
+                    style="color:var(--accent-yellow)">
+            </div>
+        </div>
+
+        <!-- Amplifier Controls -->
+        <div class="controls-bar">
+            <div class="mode-group"><label>Amplifier Class</label>
+                <div class="mode-buttons">
+                    <button class="btn-amp active" onclick="setAmpClass('A')" id="btn-amp-A">A</button>
+                    <button class="btn-amp" onclick="setAmpClass('B_POS')" id="btn-amp-B_POS">B(+)</button>
+                    <button class="btn-amp" onclick="setAmpClass('B_NEG')" id="btn-amp-B_NEG">B(-)</button>
+                    <button class="btn-amp" onclick="setAmpClass('B_COMBINED')" id="btn-amp-B_COMBINED">B(±)</button>
+                    <button class="btn-amp" onclick="setAmpClass('AB_POS')" id="btn-amp-AB_POS">AB(+)</button>
+                    <button class="btn-amp" onclick="setAmpClass('AB_NEG')" id="btn-amp-AB_NEG">AB(-)</button>
+                    <button class="btn-amp" onclick="setAmpClass('AB')" id="btn-amp-AB">AB(±)</button>
+                    <button class="btn-amp" onclick="setAmpClass('C_POS')" id="btn-amp-C_POS">C(+)</button>
+                    <button class="btn-amp" onclick="setAmpClass('C_NEG')" id="btn-amp-C_NEG">C(-)</button>
+                    <button class="btn-amp" onclick="setAmpClass('C')" id="btn-amp-C">C(±)</button>
+                    <button class="btn-amp" onclick="setAmpClass('DOHERTY')" id="btn-amp-DOHERTY">Doherty</button>
+                    <button class="btn-amp" onclick="setAmpClass('E')" id="btn-amp-E">E</button>
+                    <button class="btn-amp" onclick="setAmpClass('F')" id="btn-amp-F">F</button>
+                </div>
+            </div>
+            <div class="ctrl-divider"></div>
+            <div class="control-group">
+                <div class="ctrl-label" style="color:var(--accent-cyan)"><span>Drive (dB)</span><input type="number"
+                        id="ctrl-drive-num" value="0" step="any"></div>
+                <input type="range" id="ctrl-drive" value="0" min="-15" max="6" step="0.5"
+                    style="color:var(--accent-cyan)">
+            </div>
+            <div class="control-group">
+                <div class="ctrl-label" style="color:var(--accent-purple)"><span>Filter Q</span><input type="number"
+                        id="ctrl-filterq-num" value="5" step="any"></div>
+                <input type="range" id="ctrl-filterq" value="5" min="1" max="30" step="1"
+                    style="color:var(--accent-purple)">
+            </div>
+            <div class="control-group">
+                <div class="ctrl-label" style="color:var(--accent-yellow)"><span>Window (×)</span><input type="number"
+                        id="ctrl-winmul-num" value="1.0" step="any"></div>
+                <input type="range" id="ctrl-winmul" value="1.0" min="0.1" max="10" step="0.1"
+                    style="color:var(--accent-yellow)">
+            </div>
+            <div class="ctrl-divider"></div>
+            <button class="btn-ber" id="btn-ber" onclick="toggleBER()">BER Analysis</button>
+            <div class="ctrl-divider"></div>
+            <button class="btn-mode" onclick="resetStats()">Reset Stats</button>
+        </div>
+
+        <!-- Visualizations -->
+        <div class="viz-layout">
+            <div class="viz-card">
+                <div class="viz-label input-lbl">Input Signal
+                    <select id="left-scale" class="mod-scale">
+                        <option value="linear">Linear (Real)</option>
+                        <option value="db">Magnitude (dB)</option>
+                    </select>
+                </div>
+                <canvas id="canvas-input"></canvas>
+            </div>
+            <div class="viz-card">
+                <div class="viz-label output-lbl">Amplified Output
+                    <select id="right-scale" class="mod-scale">
+                        <option value="linear">Linear (Real)</option>
+                        <option value="db">Magnitude (dB)</option>
+                    </select>
+                </div>
+                <div class="stats-panel">
+                    <div class="stat-box" style="display:none">In PAPR: <span class="val-yellow" id="lbl-papr-in">0.00 dB</span></div>
+                    <div class="stat-box">Out PAPR: <span class="val-orange" id="lbl-papr-out">0.00 dB</span></div>
+                    <div class="stat-box" style="display:none">η Inst: <span class="val-green" id="lbl-eff-inst">0.0%</span></div>
+                    <div class="stat-box">η Avg: <span class="val-cyan" id="lbl-eff-avg">0.0%</span></div>
+                    <div class="stat-box">Compress: <span class="val-red" id="lbl-compress">0.0 dB</span></div>
+                    <div class="stat-box">AM/PM: <span class="val-purple" id="lbl-ampm">0.0°</span></div>
+                    <div class="stat-box" id="stat-evm" style="display:none">EVM: <span class="val-pink"
+                            id="lbl-evm">—</span></div>
+                    <div class="stat-box" id="stat-ber" style="display:none">BER: <span class="val-pink"
+                            id="lbl-ber">—</span></div>
+                </div>
+                <div class="constellation-overlay" id="constellation-box">
+                    <span class="constellation-label">Constellation</span>
+                    <canvas id="canvas-constellation" width="160" height="160"></canvas>
+                </div>
+                <canvas id="canvas-output"></canvas>
+            </div>
+        </div>
+        <div class="time-info">
+            <div>Window: <span id="lbl-time-window">—</span></div>
+            <div>Samples: <span id="lbl-samples">4096</span></div>
+        </div>
+    </div>
+
+    <script>
+        /* ===== STATE ===== */
+        const ST = {
+            signalType: 'LFM', bw: 2, duty: 100, tscale: 1.0, ampBias: 1.0, carrier: 4,
+            lfm_pw: 1.0, ofdm_subbw: 200, ofdm_mod: 'BPSK', mb_beams: 100,
+            ampClass: 'A', drive: 0, filterQ: 5, windowMul: 1.0,
+            maxPaprInDb: 0, maxPaprOutDb: 0,
+            displayAmp: 1.0, targetAmp: 1.0, frameMaxAmp: 0, lastAmpUpdate: 0,
+            displayAmpOut: 1.0, targetAmpOut: 1.0, frameMaxAmpOut: 0, lastAmpUpdateOut: 0
+        };
+        let lastTimeSpan = 1; // for scroll normalization
+        const MAX_BEAMS = 5000;
+        const BEAM_PHASES = new Float32Array(MAX_BEAMS);
+        for (let i = 0; i < MAX_BEAMS; i++) BEAM_PHASES[i] = Math.random() * Math.PI * 2;
+
+        /* ===== UI BINDING ===== */
+        function bindCtrl(id, key, parser, reset = true) {
+            const rng = document.getElementById('ctrl-' + id);
+            const num = document.getElementById('ctrl-' + id + '-num');
+            const update = (val, source) => {
+                const v = parser(val);
+                if (isNaN(v)) return;
+                if (source !== 'rng') rng.value = v;
+                if (source !== 'num') num.value = v;
+                ST[key] = v;
+                if (reset) resetStats();
+            };
+            rng.addEventListener('input', e => update(e.target.value, 'rng'));
+            num.addEventListener('input', e => update(e.target.value, 'num'));
+        }
+        bindCtrl('bw', 'bw', parseFloat);
+        bindCtrl('duty', 'duty', parseFloat);
+        bindCtrl('tscale', 'tscale', parseFloat, false);
+        bindCtrl('dc', 'ampBias', parseFloat, false);
+        bindCtrl('carrier', 'carrier', parseFloat);
+        bindCtrl('pw', 'lfm_pw', parseFloat);
+        bindCtrl('subbw', 'ofdm_subbw', parseFloat);
+        bindCtrl('beams', 'mb_beams', parseInt);
+        bindCtrl('drive', 'drive', parseFloat, false);
+        bindCtrl('filterq', 'filterQ', parseInt, false);
+        bindCtrl('winmul', 'windowMul', parseFloat, false);
+
+        function setSignalType(type) {
+            ST.signalType = type;
+            document.querySelectorAll('.btn-mode').forEach(b => { if (b.id && b.id.startsWith('btn-') && !b.id.startsWith('btn-mod')) b.classList.remove('active'); });
+            document.getElementById('btn-' + type).classList.add('active');
+            const isLFM = type === 'LFM', isOFDM = type === 'OFDM' || type === 'MB_OFDM';
+            const needsMod = type !== 'LFM', needsBeams = type === 'MB_OFDM' || type === 'MB_COMMS';
+            document.querySelectorAll('.lfm-only').forEach(el => el.classList.toggle('hidden', !isLFM));
+            document.querySelectorAll('.ofdm-only').forEach(el => el.classList.toggle('hidden', !isOFDM));
+            document.querySelectorAll('.mod-only').forEach(el => el.classList.toggle('hidden', !needsMod));
+            document.querySelectorAll('.mb-only').forEach(el => el.classList.toggle('hidden', !needsBeams));
+            resetStats();
+        }
+        function setModulation(mod) {
+            ST.ofdm_mod = mod;
+            document.querySelectorAll('.btn-mode').forEach(b => { if (b.id && b.id.startsWith('btn-mod')) b.classList.remove('active'); });
+            document.getElementById('btn-mod-' + mod).classList.add('active');
+            resetStats();
+        }
+        function setAmpClass(cls) {
+            ST.ampClass = cls;
+            document.querySelectorAll('.btn-amp').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-amp-' + cls).classList.add('active');
+
+            // Set dynamic default bias point appropriately for the amplifier physical operation
+            let defaultBias = 0;
+            if (cls === 'A') defaultBias = 1.0;          // Max rated current
+            else if (cls.startsWith('B_')) defaultBias = 0.0; // Class B no quiescent
+            else if (cls.startsWith('AB')) defaultBias = 0.1;    // 10% quiescent current
+            else if (cls === 'DOHERTY') defaultBias = 0.1;
+            else if (cls.startsWith('C')) defaultBias = 0.40;    // Conduction threshold
+            else if (cls === 'E') defaultBias = 0.05;    // Switch threshold
+            else if (cls === 'F') defaultBias = 0.15;    // Compression threshold
+
+            ST.ampBias = defaultBias;
+            document.getElementById('ctrl-dc-num').value = defaultBias;
+            document.getElementById('ctrl-dc').value = defaultBias;
+
+            resetStats();
+        }
+        function resetStats() {
+            ST.maxPaprInDb = 0; ST.maxPaprOutDb = 0;
+            berAccum = { evmSum: 0, evmCount: 0, bitErrors: 0, totalBits: 0, rxPoints: [] };
+        }
+
+        let berEnabled = false;
+        function toggleBER() {
+            berEnabled = !berEnabled;
+            document.getElementById('btn-ber').classList.toggle('active', berEnabled);
+            document.getElementById('stat-evm').style.display = berEnabled ? '' : 'none';
+            document.getElementById('stat-ber').style.display = berEnabled ? '' : 'none';
+            document.getElementById('constellation-box').classList.toggle('visible', berEnabled);
+        }
+
+        const N = 4096;
+        const sigI = new Float32Array(N), sigQ = new Float32Array(N), sigActive = new Uint8Array(N);
+        const outI = new Float32Array(N), outQ = new Float32Array(N);
+        let tAcc = 0;
+
+        function pseudoRand(seed) { let x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); }
+        function modSymbol(mod, r1, r2) {
+            let i = 0, q = 0, m = 1;
+            if (mod === 'BPSK') { i = r1 > .5 ? 1 : -1; m = 1; }
+            else if (mod === 'QPSK') { i = r1 > .5 ? 1 : -1; q = r2 > .5 ? 1 : -1; m = Math.SQRT2; }
+            else if (mod === '16QAM') { const v = [-3, -1, 1, 3]; i = v[(r1 * 4) | 0]; q = v[(r2 * 4) | 0]; m = 3 * Math.SQRT2; }
+            else if (mod === '64QAM') { const v = [-7, -5, -3, -1, 1, 3, 5, 7]; i = v[(r1 * 8) | 0]; q = v[(r2 * 8) | 0]; m = 7 * Math.SQRT2; }
+            return { i: i / m, q: q / m };
+        }
+
+        function generateSignal(dt) {
+            const bwMHz = ST.bw * 1000, carrMHz = ST.carrier * 1000; // GHz→MHz
+            sigI.fill(0); sigQ.fill(0); sigActive.fill(ST.duty >= 100 ? 1 : 0);
+            const dutyFrac = Math.max(.01, ST.duty / 100);
+            // Compute base timeSpan for scroll normalization
+            const scrollDt = Math.min(dt, 1 / 60); // cap to prevent frame-drop speed-up
+            let baseTS = 1;
+            if (ST.signalType === 'LFM') { baseTS = (ST.lfm_pw / dutyFrac) * 3; }
+            else if (ST.signalType === 'COMMS' || ST.signalType === 'MB_COMMS') { baseTS = (1 / Math.max(1, bwMHz * 2)) * 15; }
+            else { baseTS = (1 / (ST.ofdm_subbw / 1000)) * 3; }
+            baseTS *= ST.windowMul;
+            lastTimeSpan = baseTS;
+            tAcc += scrollDt * ST.tscale * baseTS * 0.3; // normalize scroll to ~30% window/sec
+            if (ST.signalType === 'LFM') {
+                const Tpw = ST.lfm_pw, PRI = Tpw / dutyFrac, K = bwMHz / Tpw, timeSpan = PRI * 3 * ST.windowMul;
+                for (let k = 0; k < N; k++) {
+                    const t = (k / N) * timeSpan + tAcc; const tm = ((t % PRI) + PRI) % PRI;
+                    if (tm <= Tpw) { const ph = 2 * Math.PI * (carrMHz * tm + .5 * K * tm * tm); sigI[k] = Math.cos(ph); sigQ[k] = Math.sin(ph); sigActive[k] = 1; }
+                }
+            } else if (ST.signalType === 'COMMS') {
+                const symRate = Math.max(1, bwMHz * 2), symD = 1 / symRate, timeSpan = symD * 15 * ST.windowMul, PRI = timeSpan / dutyFrac, Tpw = timeSpan;
+                for (let k = 0; k < N; k++) {
+                    const t = (k / N) * timeSpan + tAcc; const tm = ((t % PRI) + PRI) % PRI;
+                    if (tm <= Tpw) {
+                        sigActive[k] = 1; const bsi = Math.floor(t * symRate); const tis = t * symRate - bsi;
+                        const s = modSymbol(ST.ofdm_mod, pseudoRand(bsi), pseudoRand(bsi + .5));
+                        const sp = modSymbol(ST.ofdm_mod, pseudoRand(bsi - 1), pseudoRand(bsi - .5));
+                        let tr = Math.min(tis * 10, 1); let bl = tr * tr * (3 - 2 * tr);
+                        const rI = sp.i + (s.i - sp.i) * bl, rQ = sp.q + (s.q - sp.q) * bl;
+                        const ph = 2 * Math.PI * carrMHz * t; const c = Math.cos(ph), s2 = Math.sin(ph);
+                        sigI[k] = rI * c - rQ * s2; sigQ[k] = rI * s2 + rQ * c;
+                    }
+                }
+            } else if (ST.signalType === 'OFDM' || ST.signalType === 'MB_OFDM') {
+                let nSub = Math.floor((bwMHz) / (ST.ofdm_subbw / 1000)); nSub = Math.max(1, Math.min(nSub, 2048));
+                const numBeams = ST.signalType === 'MB_OFDM' ? ST.mb_beams : 1;
+                const subBwMHz = ST.ofdm_subbw / 1000, Tsym = 1 / subBwMHz, timeSpan = Tsym * 3 * ST.windowMul;
+                const PRI = timeSpan / dutyFrac, Tpw = timeSpan, visSub = Math.min(nSub, 64), subScale = 1 / Math.sqrt(visSub);
+                for (let b = 0; b < numBeams; b++) {
+                    if (numBeams > 50 && b > 20) {
+                        const rem = numBeams - b; const sc2 = Math.sqrt(rem * visSub * .5) / visSub;
+                        for (let k = 0; k < N; k++) {
+                            const t = (k / N) * timeSpan + tAcc; const tm = ((t % PRI) + PRI) % PRI;
+                            if (tm <= Tpw) {
+                                sigActive[k] = 1; const ni = Math.floor(t * bwMHz * 4 + b * 113); const sd = (ni * 9973) | 0;
+                                let u = pseudoRand(sd + .17), v = pseudoRand(sd + .31); if (u <= 0) u = .001; if (v <= 0) v = .001;
+                                const mag = Math.sqrt(-2 * Math.log(u)) * sc2; const phn = 2 * Math.PI * v; const phc = 2 * Math.PI * carrMHz * t;
+                                sigI[k] += mag * Math.cos(phn + phc); sigQ[k] += mag * Math.sin(phn + phc);
+                            }
+                        } break;
+                    }
+                    const bPh = BEAM_PHASES[b];
+                    for (let sc = 0; sc < visSub; sc++) {
+                        const freq = sc - visSub / 2;
+                        for (let k = 0; k < N; k++) {
+                            const t = (k / N) * timeSpan + tAcc; const tm = ((t % PRI) + PRI) % PRI;
+                            if (tm <= Tpw) {
+                                sigActive[k] = 1; const bsi = Math.floor(t / Tsym); const tis = t / Tsym - bsi;
+                                const sym = modSymbol(ST.ofdm_mod, pseudoRand(200 + b * 1000 + sc * 10 + bsi * 3), pseudoRand(200 + b * 1000 + sc * 10 + bsi * 3 + 1));
+                                const symp = modSymbol(ST.ofdm_mod, pseudoRand(200 + b * 1000 + sc * 10 + (bsi - 1) * 3), pseudoRand(200 + b * 1000 + sc * 10 + (bsi - 1) * 3 + 1));
+                                let tr = Math.min(tis * 10, 1); let bl = tr * tr * (3 - 2 * tr);
+                                const rI = symp.i + (sym.i - symp.i) * bl, rQ = symp.q + (sym.q - symp.q) * bl;
+                                const ph = 2 * Math.PI * (freq * subBwMHz + carrMHz) * t + bPh;
+                                sigI[k] += (rI * Math.cos(ph) - rQ * Math.sin(ph)) * subScale;
+                                sigQ[k] += (rI * Math.sin(ph) + rQ * Math.cos(ph)) * subScale;
+                            }
+                        }
+                    }
+                }
+                const ns = 1 / Math.sqrt(numBeams); for (let k = 0; k < N; k++) { sigI[k] *= ns; sigQ[k] *= ns; }
+            } else if (ST.signalType === 'MB_COMMS') {
+                const numBeams = ST.mb_beams, symRate = Math.max(1, bwMHz * 2), symD = 1 / symRate, timeSpan = symD * 15 * ST.windowMul;
+                const PRI = timeSpan / dutyFrac, Tpw = timeSpan;
+                for (let b = 0; b < numBeams; b++) {
+                    if (numBeams > 50 && b > 20) {
+                        const rem = numBeams - b; const sc2 = Math.sqrt(rem * .5);
+                        for (let k = 0; k < N; k++) {
+                            const t = (k / N) * timeSpan + tAcc; const tm = ((t % PRI) + PRI) % PRI;
+                            if (tm <= Tpw) {
+                                sigActive[k] = 1; const ni = Math.floor(t * bwMHz * 4 + b * 77); const sd = (ni * 6971) | 0;
+                                let u = pseudoRand(sd + .13), v = pseudoRand(sd + .29); if (u <= 0) u = .001; if (v <= 0) v = .001;
+                                const mag = Math.sqrt(-2 * Math.log(u)) * sc2; const phn = 2 * Math.PI * v; const phc = 2 * Math.PI * carrMHz * t;
+                                sigI[k] += mag * Math.cos(phn + phc); sigQ[k] += mag * Math.sin(phn + phc);
+                            }
+                        } break;
+                    }
+                    const bPh = BEAM_PHASES[b], carrOff = carrMHz + (b - numBeams / 2) * (bwMHz / numBeams);
+                    for (let k = 0; k < N; k++) {
+                        const t = (k / N) * timeSpan + tAcc; const tm = ((t % PRI) + PRI) % PRI;
+                        if (tm <= Tpw) {
+                            sigActive[k] = 1; const bsi = Math.floor(t * symRate); const tis = t * symRate - bsi;
+                            const s = modSymbol(ST.ofdm_mod, pseudoRand(bsi + b * 7717), pseudoRand(bsi + b * 7717 + .5));
+                            const sp = modSymbol(ST.ofdm_mod, pseudoRand(bsi - 1 + b * 7717), pseudoRand(bsi - 1 + b * 7717 + .5));
+                            let tr = Math.min(tis * 10, 1); let bl = tr * tr * (3 - 2 * tr);
+                            const rI = sp.i + (s.i - sp.i) * bl, rQ = sp.q + (s.q - sp.q) * bl;
+                            const ph = 2 * Math.PI * carrOff * t + bPh;
+                            sigI[k] += (rI * Math.cos(ph) - rQ * Math.sin(ph)); sigQ[k] += (rI * Math.sin(ph) + rQ * Math.cos(ph));
+                        }
+                    }
+                }
+                const ns = 1 / Math.sqrt(numBeams); for (let k = 0; k < N; k++) { sigI[k] *= ns; sigQ[k] *= ns; }
+            }
+        }
+
+        /* ===== AMPLIFIER MODELS ===== */
+        // RC filter state for Class AB / Doherty recovery
+        let rcState = 0;
+
+        function amplifyClassB(env, phase, bias) {
+            let ao = env;
+            ao = ao - 0.1 * ao * ao * ao; // slight saturation
+            if (ao > 1.0) ao = 1.0;
+            if (ao < 0) ao = 0;
+            const phOut = phase + 3.0 * env * env * (Math.PI / 180);
+            const idc = 0.9 * env;
+            return { env: ao, phase: phOut, idc };
+        }
+
+        function amplifyClassA(env, phase, bias) {
+            // Weakly nonlinear: g(A) = g1*A - g3*A^3, g1=1, g3=0.1
+            const g1 = 1.0, g3 = 0.1;
+            let ao = g1 * env - g3 * env * env * env;
+            // Symmetric soft clip (tanh)
+            if (ao > 0.95) ao = 0.95 * Math.tanh(ao / 0.95);
+            if (ao < 0) ao = 0;
+            const phOut = phase + 0.5 * env * env * (Math.PI / 180); // <1° AM/PM
+            const idc = Math.max(0, bias); // active bias current
+            return { env: ao, phase: phOut, idc };
+        }
+
+        function amplifyClassAB(env, phase, bias) {
+            const Iq = Math.max(0, bias); // quiescent current
+            const threshold = 0.05;
+            let ao;
+            if (env < threshold) {
+                // Crossover distortion mitigates via bias
+                const crossoverFactor = Math.max(0.3, Math.min(1.0, bias * 5.0));
+                ao = env * crossoverFactor;
+            } else {
+                ao = 0.95 * env + 0.05 * threshold;
+            }
+            // 3rd and 5th order IMD
+            ao = ao - 0.15 * ao * ao * ao + 0.03 * ao * ao * ao * ao * ao;
+            // Hard clip at saturation
+            if (ao > 1.0) ao = 1.0;
+            if (ao < 0) ao = 0;
+            // AM/PM: 5° near saturation
+            const phOut = phase + 5.0 * env * env * (Math.PI / 180);
+            // Dynamic DC current
+            const idc = Iq + (env > threshold ? 0.9 * env : 0);
+            // RC recovery (simple IIR)
+            const tau = 0.002; // ~50ns equivalent at our sample scale
+            rcState = rcState + (idc - rcState) * tau;
+            return { env: ao, phase: phOut, idc: Math.max(rcState, Iq) };
+        }
+
+        function amplifyDoherty(env, phase, bias) {
+            const backoff = 0.5; // -6 dB point (amplitude, not power)
+            let mainOut, peakOut = 0, mainIdc, peakIdc = 0;
+            // Main amplifier (Class AB, saturates at backoff)
+            if (env <= backoff) {
+                mainOut = env * (1.0 / backoff); // linear region, gain = 1/backoff
+                mainOut = Math.min(mainOut, 1.0);
+            } else {
+                mainOut = 1.0; // saturated
+            }
+            mainOut = mainOut - 0.08 * mainOut * mainOut * mainOut;
+            mainIdc = Math.max(0, bias) + 0.9 * Math.min(env / backoff, 1.0);
+            // Peaking amplifier (Class C, threshold at backoff)
+            if (env > backoff) {
+                const excess = (env - backoff) / (1.0 - backoff);
+                peakOut = excess * 0.9;
+                peakOut = peakOut - 0.2 * peakOut * peakOut * peakOut;
+                if (peakOut < 0) peakOut = 0;
+                peakIdc = excess * 0.8;
+            }
+            // Combined output via quarter-wave combiner
+            let ao = mainOut * 0.6 + peakOut * 0.4;
+            if (ao > 1.0) ao = 1.0;
+            // AM/PM: ±15° at transition
+            let phDev = 0;
+            const dist = Math.abs(env - backoff) / 0.15;
+            if (dist < 1.0) {
+                phDev = 15.0 * (1.0 - dist) * (env > backoff ? 1 : -1);
+            }
+            phDev += 3.0 * env * env;
+            const phOut = phase + phDev * (Math.PI / 180);
+            const idc = mainIdc + peakIdc;
+            return { env: ao, phase: phOut, idc };
+        }
+
+        function amplifyClassC(env, phase, bias) {
+            const threshold = bias; // deep cutoff tuning
+            let ao = 0, idc = 0;
+            if (env > threshold) {
+                const x = (env - threshold) / (1.0 - threshold);
+                // Heavily truncated output — quasi half-sine
+                ao = x * x * 1.2;
+                if (ao > 1.0) ao = 1.0;
+                idc = x * 0.95;
+            }
+            // Massive AM/PM: 20°+ at high drive
+            const phOut = phase + 20.0 * env * env * (Math.PI / 180);
+            return { env: ao, phase: phOut, idc };
+        }
+
+        function amplifyClassE(env, phase, bias) {
+            // Hard switching — strips AM, preserves phase
+            const switchThreshold = Math.max(0, bias);
+            let ao, idc;
+            if (env > switchThreshold) {
+                ao = 0.95; // constant amplitude output (square wave)
+                idc = 0.5; // switched duty ~50%
+            } else {
+                ao = 0;
+                idc = 0;
+            }
+            // Phase preserved; loss only at transitions modeled as small reduction
+            const transLoss = 0.02;
+            ao *= (1.0 - transLoss);
+            return { env: ao, phase, idc };
+        }
+
+        function amplifyClassF(env, phase, bias) {
+            const threshold = Math.max(0, bias);
+            let ao = 0, idc = 0;
+            if (env > threshold) {
+                const x = (env - threshold) / (1.0 - threshold);
+                // Squared voltage waveform — heavily compressed
+                ao = 0.4 + 0.6 * Math.tanh(x * 3.0);
+                // Harmonic shaping: shorts even, opens odd → square-ish
+                ao = Math.min(ao, 1.0);
+                idc = 0.15 + 0.7 * x;
+            }
+            // AM/PM moderate
+            const phOut = phase + 8.0 * env * env * (Math.PI / 180);
+            return { env: ao, phase: phOut, idc };
+        }
+
+        const ampFunctions = {
+            'A': amplifyClassA,
+            'B_POS': amplifyClassB, 'B_NEG': amplifyClassB, 'B_COMBINED': amplifyClassB,
+            'AB_POS': amplifyClassAB, 'AB_NEG': amplifyClassAB, 'AB': amplifyClassAB,
+            'DOHERTY': amplifyDoherty,
+            'C_POS': amplifyClassC, 'C_NEG': amplifyClassC, 'C': amplifyClassC,
+            'E': amplifyClassE, 'F': amplifyClassF
+        };
+
+        // Ringing/recovery filter for Class E and F
+        const ringBuf = new Float32Array(N);
+        let ringPhase = 0;
+
+        function applyOutputFilter(outEnv, Q, ampClass) {
+            // For Class E: resonant LC ringing (damped sinusoid on trailing edges)
+            // For Class F: multi-harmonic ringing
+            // For others: minimal filtering
+            if (ampClass !== 'E' && ampClass !== 'F') return;
+            const alpha = 1.0 / (Q * 2.0); // damping
+            const omega = 0.15; // normalized resonant frequency
+            // Simple 2-pole resonator simulation
+            let y1 = 0, y2 = 0;
+            for (let k = 0; k < N; k++) {
+                const x = outEnv[k];
+                const y = 2 * (1 - alpha) * Math.cos(omega) * y1 - (1 - 2 * alpha) * y2 + alpha * alpha * x;
+                outEnv[k] = y;
+                y2 = y1; y1 = y;
+            }
+            // Normalize
+            let mx = 0;
+            for (let k = 0; k < N; k++) { const a = Math.abs(outEnv[k]); if (a > mx) mx = a; }
+            if (mx > 0.01) { const sc = 1.0 / mx; for (let k = 0; k < N; k++) outEnv[k] *= sc; }
+        }
+
+        /* ===== PROCESS AMPLIFIER ===== */
+        function processAmplifier() {
+            const driveLinear = Math.pow(10, ST.drive / 20);
+            const ampFn = ampFunctions[ST.ampClass];
+
+            // Precalculate expected initial RC state to completely prevent left-edge frame reset transients 
+            // Average the starting envelope over the first few samples to prevent multi-carrier (OFDM) Phase jitter from swirling the bias
+            let envIn0 = 0;
+            if (sigActive[0]) {
+                let meanSq = 0;
+                const win = Math.min(64, N);
+                for (let i = 0; i < win; i++) {
+                    const iIn = sigI[i] * driveLinear;
+                    const qIn = sigQ[i] * driveLinear;
+                    meanSq += iIn * iIn + qIn * qIn;
+                }
+                envIn0 = Math.sqrt(meanSq / win);
+            }
+            if (ST.ampClass.startsWith('AB')) {
+                rcState = Math.max(0, ST.ampBias) + (envIn0 > 0.05 ? 0.9 * envIn0 : 0);
+            } else {
+                rcState = 0;
+            }
+
+            const envOut = new Float32Array(N);
+            const phaseOut = new Float32Array(N);
+            const idcArr = new Float32Array(N);
+
+            for (let k = 0; k < N; k++) {
+                if (!sigActive[k]) {
+                    outI[k] = 0; outQ[k] = 0;
+                    envOut[k] = 0; idcArr[k] = (ST.ampClass === 'A') ? 1.0 : 0;
+                    continue;
+                }
+                const iIn = sigI[k] * driveLinear;
+                const qIn = sigQ[k] * driveLinear;
+                const envIn = Math.sqrt(iIn * iIn + qIn * qIn);
+                const phIn = Math.atan2(qIn, iIn);
+                const result = ampFn(Math.min(envIn, 3.0), phIn, ST.ampBias); // clamp input at 3x, apply physical bias
+                let oI = result.env * Math.cos(result.phase);
+                let oQ = result.env * Math.sin(result.phase);
+                let currentIdc = result.idc;
+                let ao = result.env;
+
+                // Apply half-wave / conduction clipping based on instantaneous RF input voltage
+                const instV = iIn;
+                let conducting = true;
+                const cls = ST.ampClass;
+                const bias = ST.ampBias;
+
+                if (cls === 'B_POS' && instV <= 0) conducting = false;
+                else if (cls === 'B_NEG' && instV >= 0) conducting = false;
+                else if (cls === 'AB_POS' && instV <= -bias) conducting = false;
+                else if (cls === 'AB_NEG' && instV >= bias) conducting = false;
+                else if (cls === 'C_POS' && instV <= bias) conducting = false;
+                else if (cls === 'C_NEG' && instV >= -bias) conducting = false;
+                else if (cls === 'C' && instV > -bias && instV < bias) conducting = false;
+
+                if (!conducting) {
+                    oI = 0; oQ = 0; currentIdc = 0; ao = 0;
+                }
+
+                envOut[k] = ao;
+                phaseOut[k] = result.phase;
+                idcArr[k] = currentIdc;
+                outI[k] = oI;
+                outQ[k] = oQ;
+            }
+
+            // Apply output resonant filtering for E/F
+            if (ST.ampClass === 'E' || ST.ampClass === 'F') {
+                applyOutputFilter(envOut, ST.filterQ, ST.ampClass);
+                for (let k = 0; k < N; k++) {
+                    if (sigActive[k]) {
+                        outI[k] = envOut[k] * Math.cos(phaseOut[k]);
+                        outQ[k] = envOut[k] * Math.sin(phaseOut[k]);
+                    }
+                }
+            }
+            return { envOut, idcArr };
+        }
+
+        /* ===== CANVAS SETUP ===== */
+        const canvasIn = document.getElementById('canvas-input');
+        const canvasOut = document.getElementById('canvas-output');
+        const ctxIn = canvasIn.getContext('2d');
+        const ctxOut = canvasOut.getContext('2d');
+
+        function syncCanvas(canvas, ctx) {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const pw = Math.round(rect.width), ph = Math.round(rect.height);
+            if (canvas.width !== pw * dpr || canvas.height !== ph * dpr) {
+                canvas.width = pw * dpr; canvas.height = ph * dpr;
+                canvas.style.width = pw + 'px'; canvas.style.height = ph + 'px';
+            }
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            return { w: pw, h: ph };
+        }
+
+        /* ===== AUTO-SCALE HELPER ===== */
+        function autoScale(buf, active, stObj, keyDisp, keyTarget, keyFrame, keyLast, now, biasArr = null) {
+            let mx = 0;
+            for (let k = 0; k < N; k++) {
+                if (active[k]) {
+                    const val = buf[k] + (biasArr ? biasArr[k] : 0);
+                    const a = Math.abs(val);
+                    if (a > mx) mx = a;
+                }
+            }
+            if (mx > stObj[keyFrame]) stObj[keyFrame] = mx;
+            if (now - stObj[keyLast] > 1000) { stObj[keyTarget] = Math.max(0.1, stObj[keyFrame]); stObj[keyFrame] = 0; stObj[keyLast] = now; }
+            if (mx > stObj[keyDisp]) { stObj[keyDisp] = mx; stObj[keyTarget] = mx; stObj[keyLast] = now; }
+            else { stObj[keyDisp] += (stObj[keyTarget] - stObj[keyDisp]) * 0.1; }
+        }
+
+        /* ===== RENDER WAVEFORM ===== */
+        function drawWaveform(ctx, w, h, bufI, bufQ, active, powers, dispAmp, mode, color, conductedArr, biasArr = null) {
+            ctx.fillStyle = '#171717'; ctx.fillRect(0, 0, w, h);
+
+            // Ground line
+            const cyLine = biasArr ? h * 0.8 : h / 2;
+            ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.moveTo(0, cyLine); ctx.lineTo(w, cyLine); ctx.stroke();
+
+            if (mode === 'linear') {
+                const cy = biasArr ? h * 0.8 : h / 2;
+                // Scale sy slightly less when biasing to fit the positive unipolar envelope
+                const sy = biasArr ? ((h * 0.7) / Math.max(dispAmp, 0.01)) : (((h / 2) * 0.8) / Math.max(dispAmp, 0.01));
+
+                ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+                ctx.beginPath();
+                let lastConducted = false;
+                for (let k = 0; k < N; k++) {
+                    if (!active[k]) { lastConducted = false; continue; }
+                    const x = (k / (N - 1)) * w;
+                    const dcOffset = biasArr ? biasArr[k] : 0;
+                    const y = cy - (bufI[k] + dcOffset) * sy;
+
+                    const conducted = conductedArr ? conductedArr[k] : false;
+                    if (conductedArr && conducted !== lastConducted) {
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.strokeStyle = conducted ? 'rgba(250,204,21,0.95)' : color;
+                        ctx.moveTo(x, y);
+                    } else {
+                        (k === 0 || !active[k - 1]) ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                    }
+                    lastConducted = conducted;
+                }
+                ctx.stroke();
+            } else {
+                ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+                ctx.beginPath();
+                for (let k = 0; k < N; k++) {
+                    const x = (k / (N - 1)) * w;
+                    const db = powers[k] > 1e-10 ? 10 * Math.log10(powers[k]) : -60;
+                    let yn = (db + 60) / 80; yn = Math.max(0, Math.min(1, yn));
+                    const y = h - 20 - yn * (h - 40);
+                    k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                // dB grid
+                ctx.strokeStyle = 'rgba(115,115,115,0.15)'; ctx.lineWidth = 1;
+                ctx.font = '10px JetBrains Mono'; ctx.fillStyle = '#555';
+                for (let db = -40; db <= 20; db += 20) {
+                    let yn = (db + 60) / 80; const y = h - 20 - yn * (h - 40);
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+                    ctx.fillText(db + ' dB', 5, y - 3);
+                }
+            }
+        }
+
+        /* ===== EFFICIENCY CALCULATORS ===== */
+        function calcEfficiency(ampClass, envOut, envIn, idc) {
+            const pout = envOut * envOut;
+            if (ampClass.startsWith('B_')) return (pout > 1e-12) ? Math.min(78.5 * envOut, 78.5) : 0;
+            if (ampClass.startsWith('AB')) return (pout > 1e-12) ? Math.min(78.5 * envOut, 78.5) : 0;
+            if (ampClass.startsWith('C')) return (envOut > 0.01) ? Math.min(90.0 * envOut, 90.0) : 0;
+            switch (ampClass) {
+                case 'A': return (pout > 1e-12) ? Math.min(50.0 * pout, 50.0) : 0;
+                case 'DOHERTY': {
+                    const base = 78.5 * envOut;
+                    const oboBoost = Math.exp(-((envIn - 0.5) * (envIn - 0.5)) / 0.02) * 20;
+                    return Math.min(base + oboBoost, 85);
+                }
+                case 'E': return (envOut > 0.01) ? 92.0 : 0;
+                case 'F': return (envOut > 0.01) ? Math.min(95.0 * Math.tanh(envOut * 3), 95.0) : 0;
+                default: return 0;
+            }
+        }
+
+        /* ===== MAIN RENDER ===== */
+        function render(dt) {
+            const { w, h } = syncCanvas(canvasIn, ctxIn);
+            const { w: w2, h: h2 } = syncCanvas(canvasOut, ctxOut);
+            generateSignal(dt);
+            const { envOut: ampEnvOut, idcArr } = processAmplifier();
+
+            const now = performance.now();
+            // Input power & PAPR
+            const pIn = new Float32Array(N), pOut = new Float32Array(N);
+            let pInSum = 0, pOutSum = 0, pDcSum = 0, actCnt = 0;
+            let maxEffInst = 0, maxCompressEnvIn = 0, maxCompressEnvOut = 0, maxAmPm = 0;
+            const driveLinear = Math.pow(10, ST.drive / 20);
+
+            for (let k = 0; k < N; k++) {
+                pIn[k] = sigI[k] * sigI[k] + sigQ[k] * sigQ[k];
+                pOut[k] = outI[k] * outI[k] + outQ[k] * outQ[k];
+                if (sigActive[k]) {
+                    const eIn = Math.sqrt(pIn[k]) * driveLinear;
+                    const eOut = ampEnvOut[k];
+
+                    // Derive true thermodynamic DC power from efficiency model
+                    let instDC = idcArr[k];
+                    const effPoint = calcEfficiency(ST.ampClass, eOut, eIn, idcArr[k]);
+                    if (effPoint > 0.1) {
+                        instDC = (eOut * eOut) / (effPoint / 100);
+                    } else {
+                        // Quiescent power
+                        if (ST.ampClass === 'A') instDC = 2.0;
+                        else if (ST.ampClass.startsWith('AB') || ST.ampClass === 'DOHERTY') instDC = 0.1;
+                        else instDC = 0;
+                    }
+
+                    pInSum += pIn[k]; pOutSum += pOut[k]; pDcSum += instDC; actCnt++;
+                    // Track envelope for compression
+                    if (eIn > maxCompressEnvIn) { maxCompressEnvIn = eIn; maxCompressEnvOut = eOut; }
+                    // AM/PM tracking
+                    const phIn = Math.atan2(sigQ[k], sigI[k]);
+                    const phOut = Math.atan2(outQ[k], outI[k]);
+                    let dph = Math.abs(phOut - phIn);
+                    if (dph > Math.PI) dph = 2 * Math.PI - dph;
+                    if (dph > maxAmPm) maxAmPm = dph;
+                }
+            }
+            const pInAvg = actCnt > 0 ? Math.max(pInSum / actCnt, 1e-12) : 1e-12;
+            const pOutAvg = actCnt > 0 ? Math.max(pOutSum / actCnt, 1e-12) : 1e-12;
+            const pDcAvg = actCnt > 0 ? Math.max(pDcSum / actCnt, 1e-12) : 1e-12;
+
+            let peakIn = 0, peakOut = 0;
+            for (let k = 0; k < N; k++) {
+                if (sigActive[k]) { if (pIn[k] > peakIn) peakIn = pIn[k]; if (pOut[k] > peakOut) peakOut = pOut[k]; }
+            }
+            const paprInDb = peakIn > 1e-10 ? 10 * Math.log10(peakIn / pInAvg) : 0;
+            const paprOutDb = peakOut > 1e-10 ? 10 * Math.log10(peakOut / pOutAvg) : 0;
+            if (paprInDb > ST.maxPaprInDb) ST.maxPaprInDb = paprInDb;
+            if (paprOutDb > ST.maxPaprOutDb) ST.maxPaprOutDb = paprOutDb;
+
+            // Efficiency
+            const effAvg = (pDcAvg > 1e-12) ? Math.min((pOutAvg / pDcAvg) * 100, 100) : 0;
+            const effInst = calcEfficiency(ST.ampClass, Math.sqrt(peakOut), Math.sqrt(peakIn), 1.0);
+
+            // Compression
+            const expectedOut = maxCompressEnvIn; // linear gain = 1
+            const compress = (expectedOut > 0.01 && maxCompressEnvOut > 0.01)
+                ? 20 * Math.log10(maxCompressEnvOut / expectedOut) : 0;
+
+            // Auto-scale with possible bias
+            autoScale(sigI, sigActive, ST, 'displayAmp', 'targetAmp', 'frameMaxAmp', 'lastAmpUpdate', now);
+            autoScale(outI, sigActive, ST, 'displayAmpOut', 'targetAmpOut', 'frameMaxAmpOut', 'lastAmpUpdateOut', now, idcArr);
+
+            // Conduction array for input highlighting
+            const conductedArr = new Uint8Array(N);
+            for (let k = 0; k < N; k++) {
+                if (sigActive[k]) {
+                    const instV = sigI[k] * driveLinear;
+                    let cond = false;
+                    const bias = ST.ampBias;
+                    const cls = ST.ampClass;
+
+                    if (cls === 'A') cond = true;
+                    else if (cls === 'B_POS') cond = instV > 0;
+                    else if (cls === 'B_NEG') cond = instV < 0;
+                    else if (cls === 'B_COMBINED') cond = instV > 0 || instV < 0;
+                    else if (cls === 'AB_POS') cond = instV > -bias;
+                    else if (cls === 'AB_NEG') cond = instV < bias;
+                    else if (cls === 'AB') cond = instV > -bias || instV < bias;
+                    else if (cls === 'C_POS') cond = instV > bias;
+                    else if (cls === 'C_NEG') cond = instV < -bias;
+                    else if (cls === 'C') cond = instV > bias || instV < -bias;
+                    else if (cls === 'DOHERTY') cond = instV > -bias || instV < bias;
+                    else if (cls === 'E' || cls === 'F') cond = Math.abs(instV) > bias;
+                    else cond = Math.abs(instV) > bias;
+
+                    conductedArr[k] = cond ? 1 : 0;
+                }
+            }
+
+            // Draw
+            const leftMode = document.getElementById('left-scale').value;
+            const rightMode = document.getElementById('right-scale').value;
+            drawWaveform(ctxIn, w, h, sigI, sigQ, sigActive, pIn, ST.displayAmp, leftMode, 'rgba(56,189,248,0.9)', conductedArr);
+            drawWaveform(ctxOut, w2, h2, outI, outQ, sigActive, pOut, ST.displayAmpOut, rightMode, 'rgba(250,204,21,0.9)', null, idcArr);
+
+            // Time window label
+            const tsUs = lastTimeSpan;
+            let timeStr;
+            if (tsUs >= 1) timeStr = tsUs.toFixed(2) + ' µs';
+            else if (tsUs >= 0.001) timeStr = (tsUs * 1000).toFixed(2) + ' ns';
+            else timeStr = (tsUs * 1e6).toFixed(1) + ' ps';
+            document.getElementById('lbl-time-window').textContent = timeStr;
+
+            // Update stats
+            document.getElementById('lbl-papr-in').textContent = Math.max(0, paprInDb).toFixed(2) + ' dB';
+            document.getElementById('lbl-papr-out').textContent = Math.max(0, paprOutDb).toFixed(2) + ' dB';
+            document.getElementById('lbl-eff-inst').textContent = effInst.toFixed(1) + '%';
+            document.getElementById('lbl-eff-avg').textContent = effAvg.toFixed(1) + '%';
+            document.getElementById('lbl-compress').textContent = compress.toFixed(1) + ' dB';
+            document.getElementById('lbl-ampm').textContent = (maxAmPm * 180 / Math.PI).toFixed(1) + '°';
+
+            // BER Analysis
+            if (berEnabled) {
+                const berResult = computeBER();
+                document.getElementById('lbl-evm').textContent = berResult.evm;
+                document.getElementById('lbl-ber').textContent = berResult.ber;
+                drawConstellation(berResult.rxPoints, berResult.idealPoints, berResult.mod);
+            }
+        }
+
+        /* ===== BER ANALYSIS ===== */
+        const ctxConst = document.getElementById('canvas-constellation').getContext('2d');
+        let berAccum = { evmSum: 0, evmCount: 0, bitErrors: 0, totalBits: 0, rxPoints: [] };
+
+        function getIdealPoints(mod) {
+            const pts = [];
+            if (mod === 'BPSK') { pts.push({ i: 1, q: 0 }, { i: -1, q: 0 }); }
+            else if (mod === 'QPSK') { pts.push({ i: 1, q: 1 }, { i: 1, q: -1 }, { i: -1, q: 1 }, { i: -1, q: -1 }); }
+            else if (mod === '16QAM') { for (const a of [-3, -1, 1, 3]) for (const b of [-3, -1, 1, 3]) pts.push({ i: a, q: b }); }
+            else if (mod === '64QAM') { for (const a of [-7, -5, -3, -1, 1, 3, 5, 7]) for (const b of [-7, -5, -3, -1, 1, 3, 5, 7]) pts.push({ i: a, q: b }); }
+            return pts;
+        }
+
+        function hardDecide(ri, rq, mod) {
+            // Snap to nearest ideal constellation point (unnormalized)
+            if (mod === 'BPSK') return { i: ri >= 0 ? 1 : -1, q: 0 };
+            if (mod === 'QPSK') return { i: ri >= 0 ? 1 : -1, q: rq >= 0 ? 1 : -1 };
+            const snap = (v, levels) => {
+                let best = levels[0], bd = Math.abs(v - levels[0]);
+                for (let j = 1; j < levels.length; j++) { const d = Math.abs(v - levels[j]); if (d < bd) { bd = d; best = levels[j]; } }
+                return best;
+            };
+            if (mod === '16QAM') { const L = [-3, -1, 1, 3]; return { i: snap(ri, L), q: snap(rq, L) }; }
+            if (mod === '64QAM') { const L = [-7, -5, -3, -1, 1, 3, 5, 7]; return { i: snap(ri, L), q: snap(rq, L) }; }
+            return { i: 0, q: 0 };
+        }
+
+        function valToBits(v, mod) {
+            // Map constellation value to bit pattern for BER counting
+            if (mod === 'BPSK') return v > 0 ? [1] : [0];
+            if (mod === 'QPSK') return [v > 0 ? 1 : 0];
+            const levels4 = [-3, -1, 1, 3];
+            const levels8 = [-7, -5, -3, -1, 1, 3, 5, 7];
+            const L = (mod === '16QAM') ? levels4 : levels8;
+            const idx = L.indexOf(v);
+            const bits = [];
+            const nb = (mod === '16QAM') ? 2 : 3;
+            for (let b = nb - 1; b >= 0; b--) bits.push((Math.max(0, idx) >> b) & 1);
+            return bits;
+        }
+
+        function computeBER() {
+            const mod = ST.ofdm_mod;
+            const isLFM = ST.signalType === 'LFM';
+            if (isLFM) return { evm: 'N/A (LFM)', ber: 'N/A', rxPoints: [], idealPoints: getIdealPoints('BPSK'), mod: 'BPSK' };
+
+            const driveLinear = Math.pow(10, ST.drive / 20);
+            const rxPoints = [];
+            let evmSum = 0, evmCount = 0, bitErrors = 0, totalBits = 0;
+
+            // Normalization magnitude for constellation
+            let normM = 1;
+            if (mod === 'QPSK') normM = Math.SQRT2;
+            else if (mod === '16QAM') normM = 3 * Math.SQRT2;
+            else if (mod === '64QAM') normM = 7 * Math.SQRT2;
+
+            const bwMHz = ST.bw * 1000, carrMHz = ST.carrier * 1000;
+
+            if (ST.signalType === 'COMMS' || ST.signalType === 'MB_COMMS') {
+                // H-based demod: use input signal as carrier reference (no analytic phase needed)
+                const symRate = Math.max(1, bwMHz * 2);
+                const symD = 1.0 / symRate;
+                const timeSpan = symD * 15 * ST.windowMul;
+                const numSymVisible = Math.max(1, Math.floor(15 * ST.windowMul));
+                const numBeams = ST.signalType === 'MB_COMMS' ? Math.min(ST.mb_beams, 20) : 1;
+
+                for (let b = 0; b < numBeams; b++) {
+                    const bSeed = ST.signalType === 'MB_COMMS' ? b * 7717 : 0;
+
+                    for (let si = 0; si < numSymVisible; si++) {
+                        const tCenter = (si + 0.5) * symD;
+                        const kCenter = Math.round((tCenter / timeSpan) * N);
+                        if (kCenter < 1 || kCenter >= N - 1 || !sigActive[kCenter]) continue;
+
+                        // Known TX symbol
+                        const t = (kCenter / N) * timeSpan + tAcc;
+                        const bsi = Math.floor(t * symRate);
+                        const txSym = modSymbol(mod, pseudoRand(bsi + bSeed), pseudoRand(bsi + bSeed + 0.5));
+
+                        // H = output / (input * drive) via complex division
+                        const sI = sigI[kCenter] * driveLinear, sQ = sigQ[kCenter] * driveLinear;
+                        const inPow = sI * sI + sQ * sQ;
+                        if (inPow < 1e-12) continue;
+                        const hI = (outI[kCenter] * sI + outQ[kCenter] * sQ) / inPow;
+                        const hQ = (outQ[kCenter] * sI - outI[kCenter] * sQ) / inPow;
+
+                        // Received constellation point = H * txSym (unnormalized)
+                        const rxI_unorm = (hI * txSym.i - hQ * txSym.q) * normM;
+                        const rxQ_unorm = (hI * txSym.q + hQ * txSym.i) * normM;
+                        const txI_unorm = txSym.i * normM;
+                        const txQ_unorm = txSym.q * normM;
+
+                        rxPoints.push({ i: rxI_unorm, q: rxQ_unorm });
+                        berAccum.rxPoints.push({ i: rxI_unorm, q: rxQ_unorm });
+                        if (berAccum.rxPoints.length > 200) berAccum.rxPoints.shift();
+
+                        const errI = rxI_unorm - txI_unorm, errQ = rxQ_unorm - txQ_unorm;
+                        evmSum += errI * errI + errQ * errQ; evmCount++;
+                        berAccum.evmSum += errI * errI + errQ * errQ; berAccum.evmCount++;
+
+                        const rxDec = hardDecide(rxI_unorm, rxQ_unorm, mod);
+                        const txBitsI = valToBits(Math.round(txI_unorm), mod);
+                        const txBitsQ = valToBits(Math.round(txQ_unorm), mod);
+                        const rxBitsI = valToBits(rxDec.i, mod);
+                        const rxBitsQ = valToBits(rxDec.q, mod);
+                        for (let j = 0; j < txBitsI.length; j++) { if (txBitsI[j] !== rxBitsI[j]) { bitErrors++; berAccum.bitErrors++; } totalBits++; berAccum.totalBits++; }
+                        if (mod !== 'BPSK') {
+                            for (let j = 0; j < txBitsQ.length; j++) { if (txBitsQ[j] !== rxBitsQ[j]) { bitErrors++; berAccum.bitErrors++; } totalBits++; berAccum.totalBits++; }
+                        }
+                    }
+                }
+            } else if (ST.signalType === 'OFDM' || ST.signalType === 'MB_OFDM') {
+                // OFDM: Global complex gain estimation per symbol
+                // Uses H = sum(out·conj(in)) / sum(|in|²) instead of per-subcarrier DFT
+                // correlation, which suffered from inter-carrier leakage due to non-integer
+                // samples-per-symbol causing frame-to-frame constellation swirl.
+                const subBwMHz = ST.ofdm_subbw / 1000;
+                const Tsym = 1.0 / subBwMHz;
+                const timeSpan = Tsym * 3 * ST.windowMul;
+                let nSub = Math.floor(bwMHz / subBwMHz);
+                nSub = Math.max(1, Math.min(nSub, 2048));
+                const visSub = Math.min(nSub, 64);
+                const numBeams = ST.signalType === 'MB_OFDM' ? Math.min(ST.mb_beams, 10) : 1;
+
+                // Find physical OFDM symbols visible on screen
+                const tScreenStart = tAcc;
+                const tScreenEnd = tAcc + timeSpan;
+                const bsiFirst = Math.floor(tScreenStart / Tsym);
+                const bsiLast = Math.floor(tScreenEnd / Tsym);
+
+                for (let bsi = bsiFirst; bsi <= bsiLast; bsi++) {
+                    // Clip symbol time range to screen
+                    const tSymStart = Math.max(tScreenStart, bsi * Tsym);
+                    const tSymEnd = Math.min(tScreenEnd, (bsi + 1) * Tsym);
+
+                    // Convert to sample indices
+                    const kStart = Math.max(0, Math.floor(((tSymStart - tAcc) / timeSpan) * N));
+                    const kEnd = Math.min(N - 1, Math.ceil(((tSymEnd - tAcc) / timeSpan) * N));
+                    if (kEnd - kStart < 32) continue; // need enough samples
+
+                    // Compute global complex gain: H = sum(out·conj(in)) / sum(|in|²)
+                    // This is stable regardless of DFT alignment because it's a simple
+                    // weighted average of the instantaneous gain across all subcarriers.
+                    let hNumR = 0, hNumI = 0, hDen = 0;
+                    for (let k = kStart; k <= kEnd; k++) {
+                        if (!sigActive[k]) continue;
+                        const sI = sigI[k] * driveLinear, sQ = sigQ[k] * driveLinear;
+                        // out · conj(in) = (outI + j·outQ)(inI - j·inQ)
+                        hNumR += outI[k] * sI + outQ[k] * sQ;
+                        hNumI += outQ[k] * sI - outI[k] * sQ;
+                        hDen += sI * sI + sQ * sQ;
+                    }
+                    if (hDen < 1e-12) continue;
+                    const hR = hNumR / hDen, hIm = hNumI / hDen;
+
+                    // Precompute error sequence to isolate precise IMD/clipping noise
+                    const numSamples = kEnd - kStart + 1;
+                    const errI = new Float64Array(numSamples);
+                    const errQ = new Float64Array(numSamples);
+                    for (let k = kStart; k <= kEnd; k++) {
+                        if (!sigActive[k]) continue;
+                        const sI = sigI[k] * driveLinear, sQ = sigQ[k] * driveLinear;
+                        errI[k - kStart] = outI[k] - (hR * sI - hIm * sQ);
+                        errQ[k - kStart] = outQ[k] - (hR * sQ + hIm * sI);
+                    }
+
+                    const subScale = 1.0 / Math.sqrt(visSub);
+                    const ns = 1.0 / Math.sqrt(numBeams);
+                    // Conversion factor from correlated amplitude back to base txSym plane
+                    const errScale = 2.0 / (numSamples * subScale * ns * driveLinear);
+
+                    // Apply H to each subcarrier's known transmitted symbol
+                    for (let b = 0; b < numBeams; b++) {
+                        const bPh = BEAM_PHASES[b];
+                        for (let sc = 0; sc < Math.min(visSub, 16); sc++) {
+                            const freq = sc - visSub / 2;
+                            const txSym = modSymbol(mod,
+                                pseudoRand(200 + b * 1000 + sc * 10 + bsi * 3),
+                                pseudoRand(200 + b * 1000 + sc * 10 + bsi * 3 + 1));
+
+                            // Extract local IMD noise scatter specifically on this subcarrier
+                            let errAccI = 0, errAccQ = 0;
+                            for (let k = kStart; k <= kEnd; k++) {
+                                if (!sigActive[k]) continue;
+                                const t = (k / N) * timeSpan + tAcc;
+                                const ph = 2 * Math.PI * (freq * subBwMHz + carrMHz) * t + bPh;
+                                const c = Math.cos(ph), s = Math.sin(ph);
+
+                                const eI = errI[k - kStart];
+                                const eQ = errQ[k - kStart];
+
+                                errAccI += eI * c + eQ * s;
+                                errAccQ += -eI * s + eQ * c;
+                            }
+
+                            // The expected received "ideal" linear-scaled symbol
+                            const idealRxI = hR * txSym.i - hIm * txSym.q;
+                            const idealRxQ = hR * txSym.q + hIm * txSym.i;
+
+                            // Add non-linear isolated noise to form true physical non-linear reception
+                            const rxI_unorm = (idealRxI + errAccI * errScale) * normM;
+                            const rxQ_unorm = (idealRxQ + errAccQ * errScale) * normM;
+                            const txI_unorm = txSym.i * normM;
+                            const txQ_unorm = txSym.q * normM;
+
+                            rxPoints.push({ i: rxI_unorm, q: rxQ_unorm });
+                            berAccum.rxPoints.push({ i: rxI_unorm, q: rxQ_unorm });
+                            if (berAccum.rxPoints.length > 200) berAccum.rxPoints.shift();
+
+                            const errVecI = rxI_unorm - txI_unorm, errVecQ = rxQ_unorm - txQ_unorm;
+                            evmSum += errVecI * errVecI + errVecQ * errVecQ; evmCount++;
+                            berAccum.evmSum += errVecI * errVecI + errVecQ * errVecQ; berAccum.evmCount++;
+
+                            const rxDec = hardDecide(rxI_unorm, rxQ_unorm, mod);
+                            const txBitsI = valToBits(Math.round(txI_unorm), mod);
+                            const txBitsQ = valToBits(Math.round(txQ_unorm), mod);
+                            const rxBitsI = valToBits(rxDec.i, mod);
+                            const rxBitsQ = valToBits(rxDec.q, mod);
+                            for (let j = 0; j < txBitsI.length; j++) { if (txBitsI[j] !== rxBitsI[j]) { bitErrors++; berAccum.bitErrors++; } totalBits++; berAccum.totalBits++; }
+                            if (mod !== 'BPSK') {
+                                for (let j = 0; j < txBitsQ.length; j++) { if (txBitsQ[j] !== rxBitsQ[j]) { bitErrors++; berAccum.bitErrors++; } totalBits++; berAccum.totalBits++; }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Use accumulated values
+            const aEvmSum = berAccum.evmSum, aEvmCnt = berAccum.evmCount;
+            const aBitErr = berAccum.bitErrors, aTotalBits = berAccum.totalBits;
+            let evmPct = 0;
+            if (aEvmCnt > 0) {
+                const rmsErr = Math.sqrt(aEvmSum / aEvmCnt);
+                let refMag = 1;
+                if (mod === 'BPSK') refMag = 1;
+                else if (mod === 'QPSK') refMag = Math.SQRT2;
+                else if (mod === '16QAM') refMag = Math.sqrt(3 * 3 + 3 * 3);
+                else if (mod === '64QAM') refMag = Math.sqrt(7 * 7 + 7 * 7);
+                evmPct = (rmsErr / refMag) * 100;
+            }
+
+            const berVal = aTotalBits > 0 ? aBitErr / aTotalBits : 0;
+            let berStr;
+            if (aTotalBits === 0) berStr = 'N/A';
+            else if (berVal === 0) berStr = '0 (0/' + aTotalBits + ')';
+            else if (berVal < 0.001) berStr = berVal.toExponential(1) + ' (' + aBitErr + '/' + aTotalBits + ')';
+            else berStr = (berVal * 100).toFixed(1) + '% (' + aBitErr + '/' + aTotalBits + ')';
+
+            return {
+                evm: evmPct.toFixed(1) + '%',
+                ber: berStr,
+                rxPoints: berAccum.rxPoints,
+                idealPoints: getIdealPoints(mod),
+                mod
+            };
+        }
+
+        function drawConstellation(rxPts, idealPts, mod) {
+            const cw = 160, ch = 160;
+            ctxConst.fillStyle = 'rgba(23,23,23,0.95)';
+            ctxConst.fillRect(0, 0, cw, ch);
+
+            const pad = 18;
+            const plotW = cw - 2 * pad, plotH = ch - 2 * pad;
+            // Determine scale from mod type
+            let maxVal = 1;
+            if (mod === 'QPSK') maxVal = 1.5;
+            else if (mod === '16QAM') maxVal = 4.5;
+            else if (mod === '64QAM') maxVal = 9;
+
+            const scX = plotW / (2 * maxVal), scY = plotH / (2 * maxVal);
+            const cx = pad + plotW / 2, cy = pad + plotH / 2;
+
+            // Grid
+            ctxConst.strokeStyle = 'rgba(115,115,115,0.2)';
+            ctxConst.lineWidth = 0.5;
+            ctxConst.beginPath();
+            ctxConst.moveTo(pad, cy); ctxConst.lineTo(pad + plotW, cy);
+            ctxConst.moveTo(cx, pad); ctxConst.lineTo(cx, pad + plotH);
+            ctxConst.stroke();
+
+            // Ideal points (white squares)
+            ctxConst.fillStyle = 'rgba(255,255,255,0.5)';
+            for (const p of idealPts) {
+                const x = cx + p.i * scX, y = cy - p.q * scY;
+                ctxConst.fillRect(x - 2, y - 2, 4, 4);
+            }
+
+            // Received points (pink dots)
+            ctxConst.fillStyle = 'rgba(244,114,182,0.7)';
+            for (const p of rxPts) {
+                const x = cx + p.i * scX, y = cy - p.q * scY;
+                ctxConst.beginPath();
+                ctxConst.arc(x, y, 2.5, 0, Math.PI * 2);
+                ctxConst.fill();
+            }
+        }
+
+        /* ===== ANIMATION LOOP ===== */
+        let lastTime = 0;
+        function loop(t) {
+            if (!lastTime) lastTime = t;
+            const dt = Math.min((t - lastTime) / 1000, 0.1);
+            lastTime = t;
+            render(dt);
+            requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+    </script>
+</body>
+
+</html>

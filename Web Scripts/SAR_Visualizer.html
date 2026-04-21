@@ -1,0 +1,1902 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAR Visualizer & Planner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        body {
+            background: #171717;
+            color: #c8d6e5;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw
+        }
+
+        #app {
+            display: grid;
+            grid-template-columns: 55% 45%;
+            grid-template-rows: 1fr;
+            height: 100vh;
+            width: 100vw
+        }
+
+        #view3d {
+            position: relative;
+            grid-row: 1;
+            grid-column: 1;
+            background: #171717;
+            overflow: hidden
+        }
+
+        #view3d canvas {
+            width: 100% !important;
+            height: 100% !important
+        }
+
+        #right {
+            display: grid;
+            grid-template-rows: 50% 50%;
+            grid-column: 2;
+            border-left: 1px solid #1e2a3a
+        }
+
+        #sig-wrap {
+            position: relative;
+            border-bottom: 1px solid #1e2a3a;
+            overflow: hidden
+        }
+
+        #map-wrap {
+            position: relative;
+            overflow: hidden
+        }
+
+        .panel-label {
+            position: absolute;
+            top: 6px;
+            left: 10px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #4a6a8a;
+            z-index: 5;
+            pointer-events: none
+        }
+
+        canvas.view-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #171717
+        }
+
+        #ctrl {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 310px;
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+            background: rgba(8, 12, 24, 0.94);
+            border: 1px solid #1a3050;
+            border-radius: 10px;
+            padding: 10px 12px;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            font-size: 11px;
+            scrollbar-width: thin;
+            scrollbar-color: #1a3050 transparent
+        }
+
+        #ctrl::-webkit-scrollbar {
+            width: 4px
+        }
+
+        #ctrl::-webkit-scrollbar-thumb {
+            background: #1a3050;
+            border-radius: 2px
+        }
+
+        #ctrl h1 {
+            font-size: 14px;
+            color: #e8f0ff;
+            border-bottom: 1px solid #1a3050;
+            padding-bottom: 6px;
+            margin-bottom: 8px
+        }
+
+        .cg {
+            margin-bottom: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 8px;
+            border-radius: 6px
+        }
+
+        .cg h2 {
+            font-size: 9px;
+            color: #5a8ab5;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 4px
+        }
+
+        .cg label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #8aa0b8;
+            margin-bottom: 2px
+        }
+
+        .cg input[type=range] {
+            width: 100%;
+            margin: 2px 0 4px;
+            cursor: pointer;
+            accent-color: #3a8fd4
+        }
+
+        .vd {
+            color: #40e8a0;
+            font-weight: 700;
+            font-size: 11px;
+            min-width: 60px;
+            text-align: right
+        }
+
+        #metrics {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 3px;
+            padding: 6px;
+            z-index: 10;
+            pointer-events: none;
+            background: rgba(23, 23, 23, 0.92);
+            border-top: 1px solid #2a2a2a
+        }
+
+        .mb {
+            background: rgba(8, 12, 24, 0.88);
+            border: 1px solid #1a2a3a;
+            border-radius: 5px;
+            padding: 4px 6px;
+            text-align: center;
+            backdrop-filter: blur(6px)
+        }
+
+        .mb .ml {
+            font-size: 7.5px;
+            color: #5a7a9a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block
+        }
+
+        .mb .mv {
+            font-size: 12px;
+            font-weight: 700;
+            display: block;
+            margin-top: 1px
+        }
+
+        .c-green {
+            color: #40e8a0
+        }
+
+        .c-blue {
+            color: #3aa0e8
+        }
+
+        .c-yellow {
+            color: #e8d040
+        }
+
+        .c-red {
+            color: #e85050
+        }
+
+        .c-purple {
+            color: #a070e8
+        }
+
+        .c-cyan {
+            color: #40d8e8
+        }
+
+        .c-orange {
+            color: #e8a040
+        }
+
+        .num-input {
+            width: 52px;
+            background: rgba(10, 18, 32, 0.9);
+            border: 1px solid #1a3050;
+            color: #3aa0e8;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: right;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-left: 4px;
+        }
+
+        .num-input:focus {
+            border-color: #3aa0e8;
+            outline: none;
+        }
+
+        .score-btn {
+            width: 100%;
+            padding: 6px;
+            margin-top: 4px;
+            border-radius: 5px;
+            border: 1px solid #1a3050;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s
+        }
+
+        .score-btn.off {
+            background: rgba(20, 30, 50, 0.8);
+            color: #5a8ab5
+        }
+
+        .score-btn.on {
+            background: rgba(40, 180, 120, 0.25);
+            color: #40e8a0;
+            border-color: #40e8a0;
+            box-shadow: 0 0 12px rgba(40, 232, 160, 0.15)
+        }
+
+
+
+        #time-speed-3d {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 15px;
+            font-weight: bold;
+            color: #e8d040;
+            z-index: 50;
+            pointer-events: none;
+            background: rgba(8, 12, 24, 0.85);
+            padding: 4px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(232, 208, 64, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        #fs-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 200;
+            padding: 6px 12px;
+            background: rgba(8, 12, 24, 0.9);
+            border: 1px solid #1a3050;
+            border-radius: 5px;
+            color: #5a8ab5;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.2s
+        }
+
+        #fs-btn:hover {
+            background: #1a2a3a;
+            color: #e8f0ff;
+            border-color: #3a6a9a
+        }
+    </style>
+</head>
+
+<body>
+    <button id="fs-btn">⛶ Fullscreen</button>
+    <div id="app">
+        <div id="view3d">
+            <div id="time-speed-3d">1.0X Speed</div>
+            <div id="ctrl">
+                <h1>SAR Visualizer & Planner</h1>
+                <div class="cg">
+                    <h2>Geometry</h2>
+                    <label>Altitude (km)<input type="number" class="num-input" id="n-alt" value="500"></label><input
+                        type="range" id="i-alt" min="200" max="2000" step="10" value="500">
+                    <label>Grazing Angle (°)<input type="number" class="num-input" id="n-grz" value="40"
+                            step="0.5"></label><input type="range" id="i-grz" min="5" max="85" step="0.5" value="40">
+                    <label>Squint Angle (°)<input type="number" class="num-input" id="n-sqt" value="0"
+                            step="0.5"></label><input type="range" id="i-sqt" min="-45" max="45" step="0.5" value="0">
+                    <label>Orbit Inclination (°)<input type="number" class="num-input" id="n-inc" value="98"
+                            step="0.5"></label><input type="range" id="i-inc" min="0" max="180" step="0.5" value="98">
+                    <label>Sub-Sat Latitude (°)<input type="number" class="num-input" id="n-lat" value="0"
+                            step="1"></label><input type="range" id="i-lat" min="-90" max="90" step="1" value="0">
+                </div>
+
+                <div class="cg">
+                    <h2>RF Parameters</h2>
+                    <label>Center Freq (GHz)<input type="number" class="num-input" id="n-fc" value="10.0"
+                            step="0.1"></label><input type="range" id="i-fc" min="0.3" max="150" step="0.1" value="10">
+                    <label>Bandwidth (MHz)<input type="number" class="num-input" id="n-bw" value="150"></label><input
+                        type="range" id="i-bw" min="1" max="1000" step="1" value="150">
+                    <label>Power/beam (W)<input type="number" class="num-input" id="n-pwr" value="2000"
+                            step="10"></label><input type="range" id="i-pwr" min="10" max="20000" step="10"
+                        value="2000">
+                </div>
+                <div class="cg">
+                    <h2>Antenna (1 dB cable loss applied)</h2>
+                    <label>Gain Az (dBi 1D)<input type="number" class="num-input" id="n-gaz" value="25"
+                            step="0.5"></label><input type="range" id="i-gaz" min="5" max="40" step="0.5" value="25">
+                    <label>Gain El (dBi 1D)<input type="number" class="num-input" id="n-gel" value="17"
+                            step="0.5"></label><input type="range" id="i-gel" min="5" max="40" step="0.5" value="17">
+                </div>
+                <div class="cg">
+                    <h2>Timing</h2>
+                    <label>PRF (Hz)<input type="number" class="num-input" id="n-prf" value="4000"
+                            step="100"></label><input type="range" id="i-prf" min="500" max="20000" step="100"
+                        value="4000">
+                    <label>Duty Cycle (%)<input type="number" class="num-input" id="n-dc" value="20"></label><input
+                        type="range" id="i-dc" min="1" max="50" step="1" value="20">
+                    <label>Time Scale<input type="number" class="num-input" id="n-ts" value="0"></label><input
+                        type="range" id="i-ts" min="0" max="100" step="1" value="0">
+                </div>
+                <div class="cg">
+                    <h2>HRWS Multi-Beam</h2>
+                    <label>Number of Beams<input type="number" class="num-input" id="n-nb" value="1"></label><input
+                        type="range" id="i-nb" min="1" max="16" step="1" value="1">
+                </div>
+                <div class="cg">
+                    <h2>Noise & Losses</h2>
+                    <label>Antenna Temp (K)<input type="number" class="num-input" id="n-ta" value="300"
+                            step="10"></label><input type="range" id="i-ta" min="50" max="1000" step="10" value="300">
+                    <label>Receiver NF (dB)<input type="number" class="num-input" id="n-nf" value="2.0"
+                            step="0.1"></label><input type="range" id="i-nf" min="0.5" max="10.0" step="0.1"
+                        value="2.0">
+                    <label>Other Losses (dB)<input type="number" class="num-input" id="n-ol" value="0"
+                            step="0.5"></label><input type="range" id="i-ol" min="0" max="15" step="0.5" value="0">
+                    <label>Weather (Clear→Storm)<input type="number" class="num-input" id="n-wx"
+                            value="0"></label><input type="range" id="i-wx" min="0" max="100" step="1" value="0">
+                </div>
+                <div class="cg">
+                    <h2>Visualization</h2>
+                    <label>Tx Brightness (3D)<input type="number" class="num-input" id="n-tb" value="5"
+                            step="0.5"></label><input type="range" id="i-tb" min="0.5" max="20" step="0.5" value="5">
+                    <label>Rx Brightness (3D)<input type="number" class="num-input" id="n-rb" value="5"
+                            step="0.5"></label><input type="range" id="i-rb" min="0.5" max="20" step="0.5" value="5">
+                    <label>Tx Brightness (2D)<input type="number" class="num-input" id="n-t2" value="5"
+                            step="0.5"></label><input type="range" id="i-t2" min="0.5" max="40" step="0.5" value="5">
+                    <label>Rx Brightness (2D)<input type="number" class="num-input" id="n-r2" value="1.0"
+                            step="0.5"></label><input type="range" id="i-r2" min="0.5" max="40" step="0.5" value="1.0">
+                    <label>Sim Speed<input type="number" class="num-input" id="n-ss" value="1.0"
+                            step="0.1"></label><input type="range" id="i-ss" min="0.1" max="5" step="0.1" value="1">
+                    <label>Log Scale<input type="number" class="num-input" id="n-ls" value="0.5"
+                            step="0.1"></label><input type="range" id="i-ls" min="0.2" max="5" step="0.1" value="0.5">
+                    <label>Tx Voxel Count<input type="number" class="num-input" id="n-txv" value="3000000"
+                            step="100000"></label><input type="range" id="i-txv" min="100000" max="10000000"
+                        step="100000" value="3000000">
+                    <label>Rx Voxel Count<input type="number" class="num-input" id="n-rxv" value="400000"
+                            step="50000"></label><input type="range" id="i-rxv" min="50000" max="5000000" step="50000"
+                        value="400000">
+                    <label>Echo Spacing (km)<input type="number" class="num-input" id="n-es" value="20"
+                            step="1"></label><input type="range" id="i-es" min="1" max="50" step="1" value="20">
+                </div>
+                <div class="cg">
+                    <h2>Scan on Receive</h2>
+                    <button id="score-btn" class="score-btn off">SCORE: OFF</button>
+                    <label>SCORE Rx Gain (dBi)<input type="number" class="num-input" id="n-sg" value="35"></label><input
+                        type="range" id="i-sg" min="20" max="60" step="1" value="35">
+                </div>
+            </div>
+        </div>
+        <div id="right">
+            <div id="sig-wrap">
+                <div class="panel-label">Signal Timeline</div>
+
+                <canvas id="sig-canvas" class="view-canvas"></canvas>
+            </div>
+            <div id="map-wrap">
+                <div class="panel-label">Range-Swath View</div>
+                <canvas id="map-canvas" class="view-canvas"></canvas>
+            </div>
+        </div>
+    </div>
+    <div id="metrics"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // ============================================================
+        //  CONSTANTS
+        // ============================================================
+        const C = 299792458, K_B = 1.38064852e-23, R_E = 6371e3, GM = 3.986004418e14;
+        const DEG = Math.PI / 180, SC = 0.01, ER = R_E * SC / 1000; // ER in scene units (Earth radius)
+        const SIGMA0_DB = -15; // average earth clutter σ⁰ (dB)
+
+        // ============================================================
+        //  PARAMETERS (reactive state)
+        // ============================================================
+        const P = {
+            alt: 500, grz: 40, sqt: 0, inc: 98, lat: 0, fc: 10, bw: 150, pwr: 2000,
+            gaz: 25, gel: 17, prf: 4000, dc: 20, tsScale: 0,
+            nBeams: 1, tAnt: 300, nf: 2.0, otherLoss: 3, weather: 0, score: false, scoreGain: 35,
+            txBright: 5, rxBright: 5, txBright2D: 5, rxBright2D: 1.0, simSpeed: 1.0, logScale: 0.5,
+            txVoxels: 3000000, rxVoxels: 400000, echoSpacing: 20
+        };
+
+        // ============================================================
+        //  SAR CALCULATION ENGINE
+        // ============================================================
+        const SAR = {};
+        function recalc() {
+            const h = P.alt * 1e3; // m
+            const lam = C / (P.fc * 1e9);
+            const phi = P.sqt * DEG; // squint angle rad
+            const BW = P.bw * 1e6;
+            const cableLoss = 1; // dB
+
+            // Antenna dimensions from 1D gains
+            const Gaz_lin = Math.pow(10, P.gaz / 10);
+            const Gel_lin = Math.pow(10, P.gel / 10);
+            const D_az = Gaz_lin * lam / 2; // aperture length az (m)
+            const D_el = Gel_lin * lam / 2; // aperture length el (m)
+            const theta_az = 0.886 * lam / D_az; // 3dB beamwidth az (rad)
+            const theta_el = 0.886 * lam / D_el; // 3dB beamwidth el (rad)
+            const ApertureGain_lin = 4 * Math.PI * (D_az * D_el) / (lam * lam);
+            const G_total_dB_physical = 10 * Math.log10(ApertureGain_lin) - cableLoss;
+            const G_total_dB = G_total_dB_physical - 2; // -1 dB per dimension (taper/efficiency loss)
+            const G_total_lin = Math.pow(10, G_total_dB_physical / 10); // Maintain physical SNR calculation
+
+            // SCORE Rx Beamwidths 
+            // Narrow scans achieved by higher receive gain in elevation.
+            const Gel_rx_lin = Math.pow(10, P.scoreGain / 10);
+            const D_el_rx = Gel_rx_lin * lam / 2;
+            const theta_az_rx = theta_az; // Azimuth is unchanged
+            const theta_el_rx = 0.886 * lam / D_el_rx;
+
+
+            // Orbit & Spherical Geometry
+            const R_orbit = R_E + h;
+            const V_sat = Math.sqrt(GM / R_orbit);
+            const V_ground = V_sat * R_E / R_orbit;
+
+            // Earth rotation correction for relative velocity
+            const OMEGA_E = 7.2921159e-5;
+            const lat_rad = P.lat * DEG;
+            const inc_rad = P.inc * DEG;
+
+            // Satellite track heading (azimuth) relative to North.
+            // Spherical trig: sin(az) = cos(inc) / cos(lat)
+            const sin_az = Math.min(Math.max(Math.cos(inc_rad) / Math.max(Math.cos(lat_rad), 1e-6), -1), 1);
+            const cos_az = Math.sqrt(1 - sin_az * sin_az);
+
+            // Satellite inertial velocity vector (East, North) at altitude
+            const Vs_E = V_sat * sin_az;
+            const Vs_N = V_sat * cos_az;
+
+            // Target inertial velocity due to Earth rotation (purely East)
+            const Vt_E = OMEGA_E * R_E * Math.cos(lat_rad);
+            
+            // Relative velocity of satellite with respect to target (at satellite level)
+            const Vrel_E = Vs_E - Vt_E;
+            const Vrel_N = Vs_N;
+            const V_sat_rel = Math.sqrt(Vrel_E * Vrel_E + Vrel_N * Vrel_N);
+
+            // Relative ground track velocity (at ground level)
+            const Vg_E = V_ground * sin_az;
+            const Vg_N = V_ground * cos_az;
+            const Vg_rel = Math.sqrt(Math.pow(Vg_E - Vt_E, 2) + Math.pow(Vg_N, 2));
+
+            // Effective SAR velocity matching standard equations
+            const V_eff = Math.sqrt(V_sat_rel * Vg_rel);
+
+            // Incidence & Slant Range (Spherical Earth)
+            // compute true grazing angle at target and required depression angle at satellite (psi)
+            const target_grazing_rad = P.grz * DEG;
+            const inc_angle = Math.PI / 2 - target_grazing_rad;
+            
+            // From Law of Sines: sin(look_angle) / R_E = sin(inc_angle) / R_orbit
+            const sin_look = (R_E / R_orbit) * Math.sin(inc_angle);
+            const look_angle = Math.asin(sin_look);
+            const psi = Math.PI / 2 - look_angle; // depression angle at sat
+
+            const gamma = inc_angle - look_angle;
+            const R_slant = Math.sqrt(R_E * R_E + R_orbit * R_orbit - 2 * R_E * R_orbit * Math.cos(gamma));
+            const true_grazing = target_grazing_rad;
+
+            // Ground swath from elevation beam
+            const dep_near = psi + theta_el / 2;
+            const dep_far = psi - theta_el / 2;
+
+            const look_near = Math.PI / 2 - dep_near;
+            let sin_inc_near = (R_orbit / R_E) * Math.sin(look_near);
+            let inc_near = sin_inc_near > 1.0 ? Math.PI / 2 : Math.asin(sin_inc_near);
+            const gamma_near = inc_near - look_near;
+            const R_near = Math.sqrt(R_E * R_E + R_orbit * R_orbit - 2 * R_E * R_orbit * Math.cos(gamma_near));
+
+            const look_far = Math.PI / 2 - dep_far;
+            let sin_inc_far = (R_orbit / R_E) * Math.sin(look_far);
+            let inc_far = sin_inc_far > 1.0 ? Math.PI / 2 : Math.asin(sin_inc_far);
+            const gamma_far = inc_far - look_far;
+            const R_far = Math.sqrt(R_E * R_E + R_orbit * R_orbit - 2 * R_E * R_orbit * Math.cos(gamma_far));
+
+            const gnd_near = gamma_near * R_E;
+            const gnd_far = gamma_far * R_E;
+            const swath_ground_range = Math.abs(gnd_far - gnd_near); // m
+            const swath_slant = Math.abs(R_far - R_near);
+
+            // Azimuth footprint
+            const swath_az = theta_az * R_slant; // m (instantaneous footprint)
+
+            // Timing
+            const PW = (P.dc / 100) / P.prf; // pulse width (s)
+            const PRI = 1 / P.prf;
+
+            // Time scale: slider=0 means auto (1 PRI = 1 sec display)
+            let timeScale;
+            if (P.tsScale === 0) {
+                timeScale = P.prf; // 1 PRI per display-second
+            } else {
+                timeScale = P.tsScale * P.prf / 50; // manual adjustment
+            }
+            const speedLabel = timeScale; // display as 1/timeScale
+
+            // Doppler (using V_eff to account for Earth rotation)
+            const Bd = 2 * V_eff * Math.cos(phi) * theta_az / lam; // Doppler bandwidth (Hz)
+            const f_dc = 2 * V_eff * Math.sin(phi) / lam; // Doppler center frequency
+
+            // HRWS
+            const N = P.nBeams;
+            const PRF_eff = N * P.prf;
+            const PRF_per_beam = P.prf;
+
+            // Max unambiguous velocity (per-beam PRF, not effective)
+            const V_max = lam * PRF_per_beam / (4 * Math.cos(phi));
+
+            // DPCA condition (effective spacing in meters)
+            const dpca_spacing = 2 * V_sat_rel / PRF_per_beam;
+
+            // Minimum PRF needed (Doppler sampling + squint)
+            const PRF_min_doppler = Bd * 1.15; // 15% oversampling
+            // Maximum PRF (range ambiguity)
+            const PRF_max_range = C / (2 * swath_slant);
+
+            // Free space path loss
+            const FSPL_oneway = Math.pow(4 * Math.PI * R_slant / lam, 2);
+            const FSPL_oneway_dB = 10 * Math.log10(FSPL_oneway);
+            const FSPL_twoway_dB = 2 * FSPL_oneway_dB;
+
+            // Resolutions
+            const delta_r_slant = C / (2 * BW);
+            // Protect against dividing by zero or very small true_grazing values
+            // When pointing straight down (true_grazing -> 90 deg / PI/2 rad), Math.sin(true_grazing) -> 1
+            // Wait, delta_r_ground = delta_r_slant / Math.cos(true_grazing)
+            // Look angle = 0 is straight down. Grazing angle is angle between beam and ground plane.
+            // When pointing straight down, grazing angle is 90 deg. 
+            // Ground resolution = Slant Resolution / cos(look_angle_at_ground) 
+            // look_angle_at_ground is the incidence angle!
+            // Ground resolution = Slant Resolution / sin(incidence_angle)
+            // Or Ground resolution = Slant Resolution / cos(true_grazing)  <- THIS WAS THE BUG
+            const delta_r_ground = delta_r_slant / Math.max(Math.cos(true_grazing), 0.0001);
+            // Full azimuth resolution: δ_az = λR / (2·V·T_synth·cos²φ·N)
+            // T_synth = θ_az·R / (V·cosφ), so δ_az = λ/(2·θ_az·cos²φ·N) = D_az/(2·0.886·cos²φ·N)
+            const cosPhi2 = Math.cos(phi) * Math.cos(phi);
+            const delta_az = SAR.lam ? lam / (2 * theta_az * cosPhi2 * N) : D_az / (2 * N);
+
+            // RCS per pixel
+            const sigma0_lin = Math.pow(10, SIGMA0_DB / 10);
+            const A_pixel = delta_r_ground * delta_az;
+            const sigma = sigma0_lin * A_pixel;
+
+            // ===== Atmospheric, Rain & Ionospheric Losses (ITU-R P.676/P.838) =====
+            const f_GHz = P.fc;
+            const wxFrac = P.weather / 100; // 0=clear/dry, 1=storm
+
+            // --- ITU-R P.676-12: One-way zenith gaseous attenuation (dB) ---
+            // Separate O₂ (dry) and H₂O (wet) components
+            // Values from ITU-R P.676-12 Fig 4/11, standard atmo (15°C, 1013.25 hPa, 7.5 g/m³ H₂O)
+            const _fO2 = [0.3, 1, 2, 3, 5, 8, 10, 12, 15, 18, 20, 22, 23, 25, 28, 30, 32, 35, 38, 40, 42, 44, 46, 48, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 59.5, 60, 60.5, 61, 62, 63, 64, 65, 66, 67, 68, 70, 72, 75, 80, 85, 90, 95, 100, 105, 110, 115, 117, 118, 118.75, 119, 120, 122, 125, 130, 135, 140, 145, 150];
+            const _aO2 = [0.002, 0.003, 0.004, 0.005, 0.006, 0.009, 0.013, 0.018, 0.026, 0.035, 0.040, 0.044, 0.046, 0.048, 0.053, 0.058, 0.063, 0.073, 0.090, 0.11, 0.14, 0.18, 0.25, 0.37, 0.58, 0.75, 1.0, 1.5, 2.2, 3.8, 7.0, 14, 28, 60, 120, 260, 120, 60, 25, 12, 6.5, 3.8, 2.2, 1.5, 1.0, 0.55, 0.35, 0.20, 0.10, 0.065, 0.048, 0.042, 0.040, 0.042, 0.050, 0.080, 0.18, 0.50, 3.0, 0.50, 0.18, 0.085, 0.055, 0.040, 0.035, 0.038, 0.045, 0.055];
+            const _fH2O = [0.3, 1, 2, 3, 5, 8, 10, 12, 15, 18, 19, 20, 21, 22, 22.235, 22.5, 23, 24, 25, 28, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150];
+            const _aH2O = [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.004, 0.008, 0.013, 0.025, 0.055, 0.075, 0.10, 0.15, 0.26, 0.32, 0.26, 0.18, 0.095, 0.065, 0.035, 0.028, 0.023, 0.025, 0.030, 0.035, 0.040, 0.038, 0.040, 0.045, 0.055, 0.070, 0.10, 0.12, 0.15, 0.20];
+
+            function lerpTable(fArr, aArr, f) {
+                if (f <= fArr[0]) return aArr[0];
+                if (f >= fArr[fArr.length - 1]) return aArr[aArr.length - 1];
+                for (let i = 0; i < fArr.length - 1; i++) {
+                    if (f >= fArr[i] && f <= fArr[i + 1]) {
+                        const t = (f - fArr[i]) / (fArr[i + 1] - fArr[i]);
+                        return aArr[i] + t * (aArr[i + 1] - aArr[i]);
+                    }
+                }
+                return aArr[aArr.length - 1];
+            }
+
+            const zenith_O2 = lerpTable(_fO2, _aO2, f_GHz);   // dB, 1-way zenith
+            const zenith_H2O_base = lerpTable(_fH2O, _aH2O, f_GHz);
+            // Weather scales water vapor: dry(0.5x) → standard(1x) → humid(2.5x)
+            const h2o_scale = 0.5 + wxFrac * 2.0;
+            const zenith_H2O = zenith_H2O_base * h2o_scale;
+            const zenith_gas = zenith_O2 + zenith_H2O;
+
+            // --- ITU-R P.838: Rain attenuation (1-way zenith, dB) ---
+            // Rain rate mapped from weather slider: 0→0 mm/hr, 100→50 mm/hr
+            const rain_rate = wxFrac * 50; // mm/hr
+            // Specific rain attenuation: γ_R = k * R^α (ITU-R P.838 approx coefficients)
+            // k and α depend on frequency; simplified polynomial fit for 1-150 GHz
+            let k_rain, alpha_rain;
+            if (f_GHz < 1) { k_rain = 0.00001; alpha_rain = 0.9; }
+            else if (f_GHz < 2) { k_rain = 0.0001; alpha_rain = 1.0; }
+            else if (f_GHz < 5) { k_rain = 0.0005; alpha_rain = 1.05; }
+            else if (f_GHz < 10) { k_rain = 0.003; alpha_rain = 1.12; }
+            else if (f_GHz < 15) { k_rain = 0.01; alpha_rain = 1.18; }
+            else if (f_GHz < 25) { k_rain = 0.04; alpha_rain = 1.15; }
+            else if (f_GHz < 40) { k_rain = 0.12; alpha_rain = 1.08; }
+            else if (f_GHz < 60) { k_rain = 0.35; alpha_rain = 0.95; }
+            else if (f_GHz < 100) { k_rain = 0.45; alpha_rain = 0.88; }
+            else { k_rain = 0.50; alpha_rain = 0.85; }
+            const gamma_rain = k_rain * Math.pow(Math.max(rain_rate, 0), alpha_rain); // dB/km
+            const rain_height = 4.5; // km effective rain height (typical mid-lat)
+            const zenith_rain = gamma_rain * rain_height; // dB, 1-way zenith
+
+            // --- Ionospheric loss (only significant below ~2 GHz) ---
+            // TEC ~40 TECU, absorption scales as 1/f^1.5
+            const zenith_iono = 0.04 * Math.pow(1.0 / Math.max(f_GHz, 0.1), 1.5); // dB, 1-way
+
+            // --- Slant path multiplier (cosecant of elevation/grazing angle) ---
+            const slant_mult = 1.0 / Math.max(Math.sin(true_grazing), 0.017); // Cap at ~1 deg
+
+            // --- Total 2-way losses ---
+            const Loss_gas_dB = 2 * zenith_gas * slant_mult;
+            const Loss_rain_dB = 2 * zenith_rain * slant_mult;
+            const Loss_iono_dB = 2 * zenith_iono * slant_mult;
+            const total_atmos_iono_dB = Loss_gas_dB + Loss_rain_dB + Loss_iono_dB;
+
+            // Total system losses (linear)
+            const L_total_dB = cableLoss + P.otherLoss + total_atmos_iono_dB;
+            const L_total_lin = Math.pow(10, L_total_dB / 10);
+
+            const T0 = 290;
+            const NF_lin = Math.pow(10, P.nf / 10);
+            const T_rx = T0 * (NF_lin - 1);
+            const T_sys = P.tAnt + T_rx;
+
+            // E/No computations
+            // Received power (single pulse, peak)
+            const Pr = (P.pwr * G_total_lin * G_total_lin * lam * lam * sigma) /
+                (Math.pow(4 * Math.PI, 3) * Math.pow(R_slant, 4) * L_total_lin);
+
+            // Before pulse compression: SNR per sample at BW
+            const Noise_BW = K_B * T_sys * BW;
+            const ENo_before = 10 * Math.log10(Pr / Noise_BW);
+
+            // After pulse compression: gain = TBP
+            const TBP = BW * PW;
+            const ENo_after_pc = ENo_before + 10 * Math.log10(TBP);
+
+            // After azimuth compression: gain = N_az_pulses
+            const T_dwell = theta_az * R_slant / V_eff;
+            const N_az = T_dwell * P.prf;
+            const ENo_after_az = ENo_after_pc + 10 * Math.log10(N_az);
+
+            // Sidelobe pattern (sinc^2 for uniform rectangular aperture)
+            // Angles of sidelobes in elevation (off boresight)
+            const sidelobes_el = [];
+            for (let n = 1; n <= 4; n++) {
+                const u = (n + 0.5) * Math.PI; // approx peak of sinc sidelobe
+                const ang = Math.asin(u * lam / (Math.PI * D_el)); // angle off boresight
+                const level_dB = -20 * Math.log10(u); // sinc^2 level ≈ 1/u^2 → -20log(u)
+                if (!isNaN(ang) && ang < Math.PI / 2) sidelobes_el.push({ angle: ang, level_dB, level_lin: Math.pow(10, level_dB / 10) });
+            }
+
+            // Noise Equivalent Sigma Zero (NESZ)
+            // NESZ is the sigma0 that yields ENo_after_az = 0 dB (linear ratio = 1)
+            // ENo_after_az = ENo_after_pc * N_az = (Pr_sig0 / (k*T*B)) * TBP * N_az
+            // Let Pr_1 be the received power if sigma = 1 m^2
+            const Pr_1 = (P.pwr * G_total_lin * G_total_lin * lam * lam * 1.0) /
+                (Math.pow(4 * Math.PI, 3) * Math.pow(R_slant, 4) * L_total_lin);
+
+            // The total processing gain (from raw pulse to final pixel)
+            const proc_gain = TBP * N_az;
+
+            // We want: (Pr_1 * sigma0_nesz * proc_gain) / Noise_BW = 1
+            const sigma_nesz = Noise_BW / (Pr_1 * proc_gain);
+            // Convert to sigma0 by dividing by pixel area
+            const nesz_lin = sigma_nesz / A_pixel;
+            const nesz_dB = 10 * Math.log10(nesz_lin);
+
+            // Store all results
+            // CPI (Coherent Processing Interval) = synthetic aperture dwell time
+            const CPI = T_dwell; // seconds
+
+            Object.assign(SAR, {
+                h, lam, psi, phi, BW, D_az, D_el, theta_az, theta_el,
+                G_total_dB, G_total_lin, V_sat, V_ground, V_eff, R_slant,
+                R_near, R_far, swath_ground_range, swath_slant, swath_az,
+                PW, PRI, timeScale, speedLabel,
+                Bd, f_dc, N, PRF_eff, PRF_per_beam, V_max,
+                dpca_spacing,
+                PRF_min_doppler, PRF_max_range,
+                FSPL_oneway_dB, FSPL_twoway_dB,
+                delta_r_slant, delta_r_ground, delta_az,
+                sigma, A_pixel,
+                ENo_before, ENo_after_pc, ENo_after_az,
+                TBP, N_az, CPI, sidelobes_el, nesz_dB,
+                gnd_near, gnd_far, Pr, T_sys, L_total_dB,
+                theta_az_rx, theta_el_rx,
+                Loss_gas_dB, Loss_rain_dB, Loss_iono_dB, total_atmos_iono_dB, rain_rate
+            });
+        }
+        recalc();
+
+        // Beam pattern function (sinc^2, normalized)
+        function beamPatternEl(angle_off_boresight) {
+            const u = Math.PI * SAR.D_el * Math.sin(angle_off_boresight) / SAR.lam;
+            if (Math.abs(u) < 1e-10) return 1;
+            const s = Math.sin(u) / u;
+            return s * s;
+        }
+        function beamPatternAz(angle_off_boresight) {
+            const u = Math.PI * SAR.D_az * Math.sin(angle_off_boresight) / SAR.lam;
+            if (Math.abs(u) < 1e-10) return 1;
+            const s = Math.sin(u) / u;
+            return s * s;
+        }
+
+        // ============================================================
+        //  METRICS DISPLAY
+        // ============================================================
+        function updateMetrics() {
+            const m = document.getElementById('metrics');
+            const fmt = (v, d = 1) => isFinite(v) ? v.toFixed(d) : '--';
+            const fmtE = (v) => isFinite(v) ? v.toExponential(1) : '--';
+            m.innerHTML = `
+    <div class="mb"><span class="ml">Slant Range</span><span class="mv c-blue">${fmt(SAR.R_slant / 1e3, 1)} km</span></div>
+    <div class="mb"><span class="ml">Swath (Range)</span><span class="mv c-green">${fmt(SAR.swath_ground_range / 1e3, 2)} km</span></div>
+    <div class="mb"><span class="ml">Swath (Azimuth)</span><span class="mv c-green">${fmt(SAR.swath_az / 1e3, 1)} km</span></div>
+    <div class="mb"><span class="ml">Doppler BW</span><span class="mv c-cyan">${fmt(SAR.Bd, 0)} Hz</span></div>
+    <div class="mb"><span class="ml">Eff. PRF (HRWS)</span><span class="mv c-cyan">${fmt(SAR.PRF_eff, 0)} Hz</span></div>
+    <div class="mb"><span class="ml">PRF/beam</span><span class="mv c-cyan">${fmt(SAR.PRF_per_beam, 0)} Hz</span></div>
+    <div class="mb"><span class="ml">V_max Unamb.</span><span class="mv c-yellow">${fmt(SAR.V_max, 1)} m/s</span></div>
+    <div class="mb"><span class="ml">DPCA Spacing</span><span class="mv c-purple">${SAR.dpca_spacing < 1.0 ? fmt(SAR.dpca_spacing * 100, 1) + ' cm' : fmt(SAR.dpca_spacing, 2) + ' m'}</span></div>
+    <div class="mb"><span class="ml">FSPL 1-way</span><span class="mv c-orange">${fmt(SAR.FSPL_oneway_dB, 1)} dB</span></div>
+    <div class="mb"><span class="ml">FSPL 2-way</span><span class="mv c-orange">${fmt(SAR.FSPL_twoway_dB, 1)} dB</span></div>
+    <div class="mb"><span class="ml">Range Res</span><span class="mv c-purple">${fmt(SAR.delta_r_ground, 2)} m</span></div>
+    <div class="mb"><span class="ml">Az Res (strip)</span><span class="mv c-purple">${fmt(SAR.delta_az, 2)} m</span></div>
+    <div class="mb"><span class="ml">Pulse Width</span><span class="mv c-yellow">${fmt(SAR.PW * 1e6, 1)} μs</span></div>
+    <div class="mb"><span class="ml">Beam Az</span><span class="mv c-blue">${fmt(SAR.theta_az / DEG, 3)}°</span></div>
+    <div class="mb"><span class="ml">Beam El</span><span class="mv c-blue">${fmt(SAR.theta_el / DEG, 2)}°</span></div>
+    <div class="mb"><span class="ml">E/N₀ post-PC</span><span class="mv ${SAR.ENo_after_pc > 0 ? 'c-green' : 'c-red'}">${fmt(SAR.ENo_after_pc, 1)} dB</span></div>
+    <div class="mb"><span class="ml">E/N₀ post-Az</span><span class="mv ${SAR.ENo_after_az > 0 ? 'c-green' : 'c-yellow'}">${fmt(SAR.ENo_after_az, 1)} dB</span></div>
+    <div class="mb"><span class="ml">NESZ</span><span class="mv ${SAR.nesz_dB < -20 ? 'c-green' : 'c-red'}">${fmt(SAR.nesz_dB, 1)} dB</span></div>
+    <div class="mb"><span class="ml">Gain (total)</span><span class="mv c-blue">${fmt(SAR.G_total_dB, 1)} dBi</span></div>
+    <div class="mb"><span class="ml">Gas Loss (2W)</span><span class="mv c-red">-${fmt(SAR.Loss_gas_dB, 1)} dB</span></div>
+    <div class="mb"><span class="ml">Rain Loss (2W)</span><span class="mv ${SAR.Loss_rain_dB > 1 ? 'c-red' : 'c-orange'}">-${fmt(SAR.Loss_rain_dB, 1)} dB</span></div>
+    <div class="mb"><span class="ml">Iono Loss (2W)</span><span class="mv c-orange">-${fmt(SAR.Loss_iono_dB, 2)} dB</span></div>
+    <div class="mb"><span class="ml">Total Path Loss</span><span class="mv c-red">-${fmt(SAR.total_atmos_iono_dB, 1)} dB</span></div>
+    <div class="mb"><span class="ml">Rain Rate</span><span class="mv c-cyan">${fmt(SAR.rain_rate, 0)} mm/hr</span></div>
+    <div class="mb"><span class="ml">V_sat</span><span class="mv c-cyan">${fmt(SAR.V_sat, 0)} m/s</span></div>
+    <div class="mb"><span class="ml">V_eff (ground)</span><span class="mv c-cyan">${fmt(SAR.V_eff, 0)} m/s</span></div>
+    <div class="mb"><span class="ml">CPI (Dwell)</span><span class="mv c-green">${SAR.CPI < 1 ? fmt(SAR.CPI * 1e3, 1) + ' ms' : fmt(SAR.CPI, 3) + ' s'}</span></div>
+  `;
+
+            const decSpeed = P.simSpeed / SAR.timeScale;
+            document.getElementById('time-speed-3d').textContent = `${Number(decSpeed.toPrecision(4))}X Speed`;
+        }
+
+        // ============================================================
+        //  INPUT BINDINGS
+        // ============================================================
+        function bindInput(sliderId, numId, key, mult = 1) {
+            const slider = document.getElementById(sliderId);
+            const num = document.getElementById(numId);
+            function update(val) {
+                P[key] = parseFloat(val) * mult;
+                slider.value = P[key] / mult;
+                num.value = P[key] / mult;
+                recalc(); updateMetrics(); rebuild3D();
+            }
+            slider.addEventListener('input', () => update(slider.value));
+            num.addEventListener('change', () => update(num.value));
+        }
+        bindInput('i-alt', 'n-alt', 'alt');
+        bindInput('i-grz', 'n-grz', 'grz');
+        bindInput('i-sqt', 'n-sqt', 'sqt');
+        bindInput('i-inc', 'n-inc', 'inc');
+        bindInput('i-lat', 'n-lat', 'lat');
+        bindInput('i-txv', 'n-txv', 'txVoxels');
+        bindInput('i-rxv', 'n-rxv', 'rxVoxels');
+        bindInput('i-es', 'n-es', 'echoSpacing');
+        bindInput('i-fc', 'n-fc', 'fc');
+        bindInput('i-bw', 'n-bw', 'bw');
+        bindInput('i-pwr', 'n-pwr', 'pwr');
+        bindInput('i-gaz', 'n-gaz', 'gaz');
+        bindInput('i-gel', 'n-gel', 'gel');
+        bindInput('i-prf', 'n-prf', 'prf');
+        bindInput('i-dc', 'n-dc', 'dc');
+        bindInput('i-ts', 'n-ts', 'tsScale');
+        bindInput('i-nb', 'n-nb', 'nBeams');
+        bindInput('i-ta', 'n-ta', 'tAnt');
+        bindInput('i-nf', 'n-nf', 'nf');
+        bindInput('i-ol', 'n-ol', 'otherLoss');
+        bindInput('i-wx', 'n-wx', 'weather');
+        bindInput('i-tb', 'n-tb', 'txBright');
+        bindInput('i-rb', 'n-rb', 'rxBright');
+        bindInput('i-t2', 'n-t2', 'txBright2D');
+        bindInput('i-r2', 'n-r2', 'rxBright2D');
+        bindInput('i-ss', 'n-ss', 'simSpeed');
+        bindInput('i-ls', 'n-ls', 'logScale');
+        bindInput('i-sg', 'n-sg', 'scoreGain');
+
+        document.getElementById('score-btn').addEventListener('click', function () {
+            P.score = !P.score;
+            this.className = 'score-btn ' + (P.score ? 'on' : 'off');
+            this.textContent = 'SCORE: ' + (P.score ? 'ON' : 'OFF');
+            recalc(); rebuild3D();
+        });
+
+        document.getElementById('fs-btn').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(e => console.log(e));
+            } else {
+                document.exitFullscreen();
+            }
+        });
+        document.addEventListener('fullscreenchange', () => {
+            const fsBtn = document.getElementById('fs-btn');
+            if (document.fullscreenElement) {
+                fsBtn.style.display = 'none';
+            } else {
+                fsBtn.style.display = 'block';
+                fsBtn.textContent = '⛶ Fullscreen';
+            }
+        });
+
+        // ============================================================
+        //  3-D VIEW (Three.js)
+        // ============================================================
+        // Orbit state: uses P.inc for inclination, prograde
+        let orbitPhase = -0.88; // ~39°N latitude
+        function getOrbitIncl() { return P.inc * DEG; }
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x171717, 0.0015);
+        const cam3 = new THREE.PerspectiveCamera(50, 1, 0.1, 5000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setClearColor(0x171717);
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        document.getElementById('view3d').appendChild(renderer.domElement);
+
+        const orbitControls = new THREE.OrbitControls(cam3, renderer.domElement);
+        orbitControls.enablePan = false; orbitControls.minDistance = 0.5; orbitControls.maxDistance = 500;
+        orbitControls.enableDamping = true; orbitControls.dampingFactor = 0.08;
+
+        scene.add(new THREE.AmbientLight(0x304060, 0.6));
+        const dLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dLight.position.set(200, 80, 100); scene.add(dLight);
+
+        // Stars
+        {
+            const g = new THREE.BufferGeometry(), v = [];
+            for (let i = 0; i < 5000; i++)v.push((Math.random() - .5) * 3e3, (Math.random() - .5) * 3e3, (Math.random() - .5) * 3e3);
+            g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+            scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.4 })));
+        }
+
+        // Earth
+        const earthGroup = new THREE.Group();
+        scene.add(earthGroup);
+
+        const earth = new THREE.Mesh(
+            new THREE.SphereGeometry(ER, 64, 64),
+            new THREE.MeshPhongMaterial({ color: 0x112244, emissive: 0x000510, specular: 0x050505, shininess: 5 })
+        );
+        earthGroup.add(earth);
+        earthGroup.rotation.y = 2.4; // Orient so Colorado faces initial camera
+        new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-day.jpg',
+            t => { earth.material.map = t; earth.material.color.setHex(0xaaaaaa); earth.material.needsUpdate = true });
+
+        // Grid overlay
+        earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(ER + 0.08, 64, 64),
+            new THREE.MeshBasicMaterial({ color: 0x2a4a6a, wireframe: true, transparent: true, opacity: 0.04 })));
+
+        // Satellite group
+        const satGroup = new THREE.Group();
+        const satBody = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.12, 0.04),
+            new THREE.MeshPhongMaterial({ color: 0xdddddd, emissive: 0x333333 }));
+        satGroup.add(satBody);
+        const pMat = new THREE.MeshPhongMaterial({ color: 0x224488, emissive: 0x112244 });
+        const pL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.008), pMat); pL.position.x = -0.32; satGroup.add(pL);
+        const pR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.008), pMat); pR.position.x = 0.32; satGroup.add(pR);
+        scene.add(satGroup);
+
+        // Beam groups
+        const beamGroup = new THREE.Group();
+        satGroup.add(beamGroup); // Add to satGroup so it inherits transform
+
+        const swathGroup = new THREE.Group();
+        earthGroup.add(swathGroup); // Swath stays with earth
+
+        const scoreGroup = new THREE.Group();
+        satGroup.add(scoreGroup);
+
+        // Volumetric Pulse Shader — sinc² array-factor pattern, independent az/el
+        const pulseUniforms = {
+            u_time: { value: 0 },
+            u_numPulses: { value: 10.0 },
+            u_dutyCycle: { value: 0.2 },
+            u_halfAngleAz: { value: 0.005 },
+            u_halfAngleEl: { value: 0.035 },
+            u_brightness: { value: 5.0 },
+            u_logScale: { value: 1.0 },
+            u_color: { value: new THREE.Color(1.0, 0.35, 0.05) } // warm red-orange
+        };
+        // To handle dynamic changes, we will allocate geometry dynamically in rebuild3D
+        // but for initial setup:
+        const MAX_CONE_HALF = 0.18; // radians — wide enough for several sidelobes
+        const pulseGeo = new THREE.BufferGeometry();
+        const pPts = new Float32Array(3 * 10);
+        pulseGeo.setAttribute('position', new THREE.BufferAttribute(pPts, 3));
+        const pulseMat = new THREE.ShaderMaterial({
+            uniforms: pulseUniforms,
+            vertexShader: `
+                varying vec3 vPos;
+                void main(){
+                    vPos = position;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = max(2.0, 7.0 / -mvPosition.z);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                #define PI 3.14159265359
+                uniform float u_time;
+                uniform float u_numPulses;
+                uniform float u_dutyCycle;
+                uniform float u_halfAngleAz;
+                uniform float u_halfAngleEl;
+                uniform float u_brightness;
+                uniform float u_logScale;
+                uniform vec3 u_color;
+                varying vec3 vPos;
+                void main(){
+                    float z = vPos.z;
+                    if(z < 0.005) discard;
+                    float angAz = atan(vPos.x, z);
+                    float angEl = atan(vPos.y, z);
+                    float nAz = angAz / max(u_halfAngleAz, 0.0001);
+                    float nEl = angEl / max(u_halfAngleEl, 0.0001);
+                    float sAz = abs(nAz) < 0.001 ? 1.0 : sin(PI*nAz)/(PI*nAz);
+                    float sEl = abs(nEl) < 0.001 ? 1.0 : sin(PI*nEl)/(PI*nEl);
+                    float pattern = sAz*sAz * sEl*sEl;
+                    float numP = max(u_numPulses, 1.0);
+                    float phase = fract(z * numP - u_time + 0.5) - 0.5;
+                    float pw = max(u_dutyCycle * 0.5, 0.015);
+                    float pulse = exp(-pow(phase/pw, 2.0));
+                    float intensity = pow(sqrt(pattern), 1.0 / max(u_logScale, 0.2)) * pulse;
+                    float fade = 1.0 - smoothstep(1.05, 1.25, z);
+                    intensity *= fade;
+                    intensity *= u_brightness;
+                    if(intensity < 0.015) discard;
+                    vec3 col = mix(u_color, vec3(1.0, 0.95, 0.3), clamp(intensity, 0.0, 1.0));
+                    gl_FragColor = vec4(col * (1.0 + intensity * 0.3), clamp(intensity * 0.9, 0.0, 1.0));
+                }
+            `,
+            transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+        });
+        const pulseCloudMesh = new THREE.Points(pulseGeo, pulseMat);
+
+        // Return signal (echo) — frequency-dependent radar BRDF scatter model
+        // Mesh local frame: +Z = surface normal (outward from Earth), origin = ground contact
+        const echoUniforms = {
+            u_time: { value: 0 },
+            u_numPulses: { value: 10.0 },
+            u_dutyCycle: { value: 0.2 },
+            u_brightness: { value: 5.0 },
+            u_incDir: { value: new THREE.Vector3(0, 0, -1) },
+            u_fc: { value: 10.0 },
+            u_color: { value: new THREE.Color(0.15, 0.45, 1.0) }
+        };
+        const echoGeo = new THREE.BufferGeometry();
+        const ePts = new Float32Array(3 * 10);
+        echoGeo.setAttribute('position', new THREE.BufferAttribute(ePts, 3));
+        const echoMat = new THREE.ShaderMaterial({
+            uniforms: echoUniforms,
+            vertexShader: `
+                varying vec3 vPos;
+                void main(){
+                    vPos = position;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = max(1.5, 4.0 / -mvPosition.z);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                #define PI 3.14159265359
+                uniform float u_time;
+                uniform float u_numPulses;
+                uniform float u_dutyCycle;
+                uniform float u_brightness;
+                uniform vec3 u_incDir;
+                uniform float u_fc;
+                uniform vec3 u_color;
+                varying vec3 vPos;
+
+                float interpBRDF(float fc, float vL, float vC, float vX, float vK) {
+                    float knots[4]; float vals[4];
+                    knots[0]=1.3; knots[1]=5.4; knots[2]=10.0; knots[3]=18.0;
+                    vals[0]=vL; vals[1]=vC; vals[2]=vX; vals[3]=vK;
+                    if(fc <= knots[0]) return vals[0];
+                    if(fc >= knots[3]) return vals[3];
+                    for(int i=0; i<3; i++){
+                        if(fc <= knots[i+1]){
+                            float t = (fc - knots[i]) / (knots[i+1] - knots[i]);
+                            return mix(vals[i], vals[i+1], t);
+                        }
+                    }
+                    return vals[3];
+                }
+
+                void main(){
+                    float dist = length(vPos);
+                    if(dist < 0.005 || dist > 1.15) discard;
+                    vec3 scatterDir = normalize(vPos);
+
+                    // Surface normal = +Z in this frame
+                    vec3 normal = vec3(0.0, 0.0, 1.0);
+
+                    // Frequency-dependent BRDF weights
+                    float wDiff = interpBRDF(u_fc, 0.50, 0.80, 0.85, 0.93);
+                    float wSpec = interpBRDF(u_fc, 0.40, 0.17, 0.12, 0.03);
+                    float wBack = interpBRDF(u_fc, 0.01, 0.03, 0.03, 0.05);
+                    float specW = interpBRDF(u_fc, 0.015, 0.030, 0.045, 0.080);
+
+                    // Diffuse: cosine-weighted from surface normal
+                    float diffuse = max(dot(scatterDir, normal), 0.0);
+
+                    // Specular: Beckmann lobe around mirror reflection of incident beam
+                    vec3 specDir = u_incDir - 2.0 * dot(u_incDir, normal) * normal;
+                    float cosSpec = max(dot(scatterDir, specDir), 0.0);
+                    float specAngle = acos(clamp(cosSpec, -1.0, 1.0));
+                    float specular = exp(-(specAngle * specAngle) / max(specW, 0.001));
+
+                    // Backscatter: retro-reflection toward transmitter
+                    float cosRetro = max(dot(scatterDir, -u_incDir), 0.0);
+                    float retroAngle = acos(clamp(cosRetro, -1.0, 1.0));
+                    float backscatter = exp(-(retroAngle * retroAngle) / 0.12);
+
+                    float brdf = diffuse * wDiff + specular * wSpec + backscatter * wBack;
+
+                    // Spherical pulse wavefronts from ground contact
+                    float numP = max(u_numPulses, 1.0);
+                    float phase = fract(dist * numP - u_time + numP + 0.5) - 0.5;
+                    float pw = max(u_dutyCycle * 0.5, 0.015);
+                    float pulse = exp(-pow(phase/pw, 2.0));
+
+                    float rangeLoss = 1.0 / (1.0 + dist * dist * 5.0);
+                    float intensity = brdf * pulse * rangeLoss * 0.15;
+                    intensity *= u_brightness;
+                    if(intensity < 0.004) discard;
+                    vec3 col = mix(u_color, vec3(0.5, 0.8, 1.0), clamp(intensity * 2.0, 0.0, 1.0));
+                    gl_FragColor = vec4(col * (1.0 + intensity * 0.3), clamp(intensity * 0.65, 0.0, 1.0));
+                }
+            `,
+            transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+        });
+        const echoCloudMesh = new THREE.Points(echoGeo, echoMat);
+        const echoMeshPool = []; // Pool of echo cloud clones for distributed grid
+
+
+
+        // Ground track line (hidden for realism as per user request)
+        // const trackGeo = new THREE.BufferGeometry();
+        // const trackMat = new THREE.LineBasicMaterial({ color: 0x40e8a0, transparent: true, opacity: 0.4 });
+        // const trackLine = new THREE.Line(trackGeo, trackMat);
+        // scene.add(trackLine);
+
+        let satPos = new THREE.Vector3();
+        let satVel = new THREE.Vector3();
+
+        function updateSatPosition() {
+            const altScene = P.alt * SC;
+            const orbitR = ER + altScene;
+
+            // Derive orbit phase from latitude: sin(lat) = sin(inc) * sin(phase)
+            const inc = getOrbitIncl();
+            const sinInc = Math.sin(inc);
+            const latRad = P.lat * DEG;
+            // Clamp to avoid asin domain errors when |lat| > inc
+            const sinPhase = Math.min(Math.max(Math.sin(latRad) / Math.max(sinInc, 1e-6), -1), 1);
+            orbitPhase = -Math.asin(sinPhase);
+
+            const cx = orbitR * Math.cos(orbitPhase);
+            const cy = orbitR * Math.sin(orbitPhase);
+            satPos.set(cx, 0, cy);
+
+            // Prograde: velocity in direction of increasing phase
+            const vx = Math.sin(orbitPhase);
+            const vy = -Math.cos(orbitPhase);
+            satVel.set(vx, 0, vy).normalize();
+
+            // Apply inclination
+            const rotInc = new THREE.Matrix4().makeRotationX(inc);
+            satPos.applyMatrix4(rotInc);
+            satVel.applyMatrix4(rotInc);
+
+            // Re-orthogonalize axes for sat matrix
+            const zAxis = satPos.clone().normalize().negate(); // Nadir (+Z local points to earth center)
+            const yAxis = satVel.clone(); // Velocity (+Y local is forward)
+            const xAxis = new THREE.Vector3().crossVectors(yAxis, zAxis).normalize(); // Cross-track (+X local is right)
+
+            const m = new THREE.Matrix4();
+            m.makeBasis(xAxis, yAxis, zAxis);
+            m.setPosition(satPos);
+
+            satGroup.matrixAutoUpdate = false;
+            satGroup.matrix.copy(m);
+
+            // Ground track is disabled for realism
+        }
+
+        function rebuild3D() {
+            updateSatPosition();
+
+            // Clear beam groups
+            while (beamGroup.children.length) beamGroup.remove(beamGroup.children[0]);
+            while (swathGroup.children.length) swathGroup.remove(swathGroup.children[0]);
+
+            // Sat Local Frame: +Z=Nadir, +Y=Velocity(Azimuth), +X=CrossTrack(Elevation look)
+            const up = new THREE.Vector3(0, 0, 1);
+            const velDir = new THREE.Vector3(0, 1, 0);
+            const crossTrack = new THREE.Vector3(1, 0, 0);
+
+            const offNadir = Math.PI / 2 - SAR.psi;
+            const squintRad = P.sqt * DEG;
+            const beamDir = new THREE.Vector3()
+                .addScaledVector(up, Math.cos(offNadir))
+                .addScaledVector(crossTrack, Math.sin(offNadir) * Math.cos(squintRad))
+                .addScaledVector(velDir, Math.sin(offNadir) * Math.sin(squintRad))
+                .normalize();
+
+            // Ray-sphere intersection to find distance to Earth surface
+            const satWorldPos = new THREE.Vector3().setFromMatrixPosition(satGroup.matrix);
+            const dirWorld = beamDir.clone().applyMatrix4(new THREE.Matrix4().extractRotation(satGroup.matrix));
+            const aa = dirWorld.dot(dirWorld);
+            const bb = 2 * satWorldPos.dot(dirWorld);
+            const cc = satWorldPos.dot(satWorldPos) - ER * ER;
+            const disc = bb * bb - 4 * aa * cc;
+            if (disc < 0) return;
+            const distToGround = (-bb - Math.sqrt(disc)) / (2 * aa);
+            if (distToGround <= 0) return;
+
+            // Rebuild Pulse Geometry if voxel counts changed
+            const txCount = Math.floor(P.txVoxels);
+            if (!pulseCloudMesh.geometry.attributes.position || pulseCloudMesh.geometry.attributes.position.count !== txCount) {
+                const MAX_CONE_HALF = 0.18;
+                const pPts = new Float32Array(txCount * 3);
+                for (let i = 0; i < txCount; i++) {
+                    const z = 0.005 + 0.995 * Math.cbrt(Math.random());
+                    const angR = MAX_CONE_HALF * Math.sqrt(Math.random());
+                    const angA = Math.random() * Math.PI * 2;
+                    pPts[i * 3] = z * Math.tan(angR) * Math.cos(angA);
+                    pPts[i * 3 + 1] = z * Math.tan(angR) * Math.sin(angA);
+                    pPts[i * 3 + 2] = z;
+                }
+                pulseCloudMesh.geometry.setAttribute('position', new THREE.BufferAttribute(pPts, 3));
+            }
+
+            // Count how many grid emitters we need (for dividing voxel budget)
+            const GRID_SPACING_M_pre = P.echoSpacing * 1000;
+            const nAzPre = Math.ceil((SAR.swath_az / 2) / GRID_SPACING_M_pre);
+            const nRngPre = Math.ceil((SAR.swath_ground_range / 2) / GRID_SPACING_M_pre);
+            let numGridEmitters = 0;
+            for (let ia = -nAzPre; ia <= nAzPre; ia++)
+                for (let ir = -nRngPre; ir <= nRngPre; ir++)
+                    if (Math.abs(ia * GRID_SPACING_M_pre) <= SAR.swath_az / 2 && Math.abs(ir * GRID_SPACING_M_pre) <= SAR.swath_ground_range / 2)
+                        numGridEmitters++;
+            numGridEmitters = Math.max(numGridEmitters, 1);
+
+            // Rebuild Echo Geometry if voxel count changed — divide total budget among emitters
+            const rxCountPerEmitter = Math.max(1000, Math.floor(P.rxVoxels / numGridEmitters));
+            if (!echoGeo.attributes.position || echoGeo.attributes.position.count !== rxCountPerEmitter) {
+                const ePts = new Float32Array(rxCountPerEmitter * 3);
+                for (let i = 0; i < rxCountPerEmitter; i++) {
+                    // Upper hemisphere only (z >= 0 = above surface), centered at origin
+                    const r = Math.cbrt(Math.random()) * 1.2;
+                    const theta = Math.acos(Math.random()); // 0 to PI/2
+                    const phi = Math.random() * Math.PI * 2;
+                    ePts[i * 3] = r * Math.sin(theta) * Math.cos(phi);
+                    ePts[i * 3 + 1] = r * Math.sin(theta) * Math.sin(phi);
+                    ePts[i * 3 + 2] = r * Math.cos(theta); // always >= 0
+                }
+                echoGeo.setAttribute('position', new THREE.BufferAttribute(ePts, 3));
+            }
+
+            // Update pulse shader uniforms
+            pulseUniforms.u_numPulses.value = SAR.R_slant * P.prf / C;
+            pulseUniforms.u_dutyCycle.value = P.dc / 100;
+            pulseUniforms.u_halfAngleAz.value = SAR.theta_az / 2;
+            pulseUniforms.u_halfAngleEl.value = SAR.theta_el / 2;
+            pulseUniforms.u_brightness.value = P.txBright;
+            pulseUniforms.u_logScale.value = P.logScale;
+
+            // Echo uniforms
+            echoUniforms.u_numPulses.value = pulseUniforms.u_numPulses.value;
+            echoUniforms.u_dutyCycle.value = pulseUniforms.u_dutyCycle.value;
+            echoUniforms.u_brightness.value = P.rxBright;
+            echoUniforms.u_fc.value = P.fc;
+
+            // Align pulse cloud: +Z along beam, +X along azimuth (velocity projected), +Y along elevation
+            const zAx = beamDir.clone().normalize();
+            const velProj = velDir.clone().sub(zAx.clone().multiplyScalar(velDir.dot(zAx)));
+            const xAx = velProj.length() > 0.001 ? velProj.normalize() : crossTrack.clone();
+            const yAx = new THREE.Vector3().crossVectors(zAx, xAx).normalize();
+            const rotM = new THREE.Matrix4().makeBasis(xAx, yAx, zAx);
+
+            pulseCloudMesh.position.set(0, 0, 0);
+            pulseCloudMesh.setRotationFromMatrix(rotM);
+            const distExtension = 100 * SC; // Extra 100km buffer for pulse to propagate into earth without clipping
+            pulseCloudMesh.scale.set(distToGround + distExtension, distToGround + distExtension, distToGround + distExtension);
+            beamGroup.add(pulseCloudMesh);
+
+            // Echo cloud — positioned at ground contact, +Z = surface normal
+            const gpLocal = beamDir.clone().multiplyScalar(distToGround); // ground point in satGroup local
+            const surfNormal = gpLocal.clone().normalize().negate(); // points away from earth center (in satGroup coords, sat is at origin, ground is outward, so normal = -normalized(gpLocal) since sat is above)
+            // Actually: satGroup is at sat position. gpLocal points from sat toward ground.
+            // In world, ground point = satPos + gpLocal. Surface normal = normalized(satPos + gpLocal) (radially outward).
+            // But in satGroup local, the sat is at (0,0,0). gpLocal points toward ground.
+            // Surface normal in satGroup local coords:
+            const satPosLocal = new THREE.Vector3(0, 0, 0);
+            // world ground pos = satWorldPos + dirWorld * distToGround; normal = normalized(world ground pos)
+            // But we need it in satGroup local frame.
+            // satGroup local -> world: satGroup.matrix. So ground in world = satGroup.matrix * gpLocal
+            // Surface normal in world = normalized(ground_world_pos)
+            // Surface normal in satGroup local = satGroup.matrix.inverse * normalized(ground_world_pos)
+            const echoGpWorld = satWorldPos.clone().add(dirWorld.clone().multiplyScalar(distToGround));
+            const surfNormWorld = echoGpWorld.clone().normalize(); // radially outward from Earth center
+            // Transform surfNormWorld to satGroup local frame
+            const invSatRot = new THREE.Matrix4().extractRotation(satGroup.matrix).invert();
+            const surfNormLocal = surfNormWorld.clone().applyMatrix4(invSatRot);
+
+            // Build echo rotation: +Z = surfNormLocal, make an orthonormal frame
+            const echoZ = surfNormLocal.clone().normalize();
+            // Pick an arbitrary perpendicular to echoZ for X
+            let echoX = new THREE.Vector3().crossVectors(velDir, echoZ);
+            if (echoX.length() < 0.001) echoX = new THREE.Vector3().crossVectors(new THREE.Vector3(1, 0, 0), echoZ);
+            echoX.normalize();
+            const echoY = new THREE.Vector3().crossVectors(echoZ, echoX).normalize();
+            const echoRotM = new THREE.Matrix4().makeBasis(echoX, echoY, echoZ);
+
+            // Beam incidence direction in echo-local frame
+            const beamDirNorm = beamDir.clone().normalize();
+            const echoRotInv = echoRotM.clone().invert();
+            const incDirLocal = beamDirNorm.clone().applyMatrix4(echoRotInv);
+            echoUniforms.u_incDir.value.copy(incDirLocal);
+
+            // === Distributed echo grid: place emitters across the swath ===
+            const GRID_SPACING_M = P.echoSpacing * 1000;
+            const swathAz_m = SAR.swath_az; // azimuth footprint in meters
+            const swathRng_m = SAR.swath_ground_range; // ground range footprint in meters
+
+            // Number of emitters needed in each direction from center
+            const nAz = Math.ceil((swathAz_m / 2) / GRID_SPACING_M);
+            const nRng = Math.ceil((swathRng_m / 2) / GRID_SPACING_M);
+
+            // Scene scale factor: meters to scene units
+            const m2scene = SC / 1000; // SC is scene scale, /1000 because SC was defined for km
+
+            let echoIdx = 0;
+            for (let ia = -nAz; ia <= nAz; ia++) {
+                for (let ir = -nRng; ir <= nRng; ir++) {
+                    const offsetAz_m = ia * GRID_SPACING_M;
+                    const offsetRng_m = ir * GRID_SPACING_M;
+
+                    // Check if this grid point is within the swath box
+                    if (Math.abs(offsetAz_m) > swathAz_m / 2) continue;
+                    if (Math.abs(offsetRng_m) > swathRng_m / 2) continue;
+
+                    // Get or create an echo mesh clone
+                    let mesh;
+                    if (echoIdx < echoMeshPool.length) {
+                        mesh = echoMeshPool[echoIdx];
+                    } else {
+                        mesh = new THREE.Points(echoGeo, echoMat);
+                        echoMeshPool.push(mesh);
+                    }
+
+                    // Position this emitter: offset from center ground point
+                    // echoX = cross-track (range), echoY = along-track (azimuth), echoZ = surface normal
+                    // Offsets in satGroup local frame using the echo coordinate axes
+                    const offsetLocal = new THREE.Vector3()
+                        .addScaledVector(echoX, offsetRng_m * m2scene)
+                        .addScaledVector(echoY, offsetAz_m * m2scene);
+
+                    mesh.position.copy(gpLocal).add(offsetLocal);
+                    mesh.setRotationFromMatrix(echoRotM);
+                    mesh.scale.set(distToGround, distToGround, distToGround);
+                    beamGroup.add(mesh);
+                    echoIdx++;
+                }
+            }
+
+            // Hide any unused pool meshes (they won't be in beamGroup since we cleared it)
+
+            // Ground footprint — sinc² beam pattern projection
+            const fpScaleAz = Math.tan(SAR.theta_az * 2.5) * distToGround; // ~5 beamwidths total
+            const fpScaleEl = Math.tan(SAR.theta_el * 2.5) * distToGround;
+            const fpGeo = new THREE.PlaneGeometry(fpScaleAz * 2, fpScaleEl * 2, 1, 1);
+            const fpMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    u_halfAngleAz: { value: SAR.theta_az / 2 },
+                    u_halfAngleEl: { value: SAR.theta_el / 2 },
+                    u_scaleAz: { value: fpScaleAz },
+                    u_scaleEl: { value: fpScaleEl },
+                    u_brightness: { value: P.txBright }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main(){
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    #define PI 3.14159265359
+                    uniform float u_halfAngleAz;
+                    uniform float u_halfAngleEl;
+                    uniform float u_scaleAz;
+                    uniform float u_scaleEl;
+                    uniform float u_brightness;
+                    varying vec2 vUv;
+                    void main(){
+                        float angAz = (vUv.x - 0.5) * 2.0 * atan(u_scaleAz);
+                        float angEl = (vUv.y - 0.5) * 2.0 * atan(u_scaleEl);
+                        float nAz = angAz / max(u_halfAngleAz, 0.0001);
+                        float nEl = angEl / max(u_halfAngleEl, 0.0001);
+                        float sAz = abs(nAz) < 0.001 ? 1.0 : sin(PI*nAz)/(PI*nAz);
+                        float sEl = abs(nEl) < 0.001 ? 1.0 : sin(PI*nEl)/(PI*nEl);
+                        float pattern = sAz*sAz * sEl*sEl;
+                        if(pattern < 0.01) discard;
+                        vec3 baseCol = vec3(1.0, 0.35, 0.05);
+                        vec3 col = mix(baseCol, vec3(1.0, 0.95, 0.3), sqrt(pattern));
+                        float alpha = pattern * 0.35 * u_brightness;
+                        gl_FragColor = vec4(col * u_brightness * 0.3, clamp(alpha, 0.0, 1.0));
+                    }
+                `,
+                transparent: true, side: THREE.DoubleSide, depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const fp = new THREE.Mesh(fpGeo, fpMat);
+            const gpWorld = satWorldPos.clone().add(dirWorld.clone().multiplyScalar(distToGround));
+            const gNorm = gpWorld.clone().normalize();
+            const gpEL = gpWorld.clone().applyMatrix4(earthGroup.matrixWorld.clone().invert());
+            const gnEL = gNorm.clone().applyMatrix4(earthGroup.matrixWorld.clone().invert());
+            fp.position.copy(gpEL.clone().add(gnEL.clone().multiplyScalar(0.05)));
+            // Orient the plane: normal = gnEL, and align the plane's Y with the squinted beam projection
+            // We want the plane's local X/Y to match the beam's azimuth/elevation cross-sections
+            // gnEL is the surface normal.
+            const zAxisPlane = gnEL.clone();
+
+            // Project the beam's Y axis (azimuth/velocity) onto the ground plane
+            const bDirY = velDir.clone().applyMatrix4(satGroup.matrix).applyMatrix4(earthGroup.matrixWorld.clone().invert()).normalize();
+            const yAxisPlane = bDirY.clone().sub(zAxisPlane.clone().multiplyScalar(bDirY.dot(zAxisPlane))).normalize();
+            const xAxisPlane = new THREE.Vector3().crossVectors(yAxisPlane, zAxisPlane).normalize();
+
+            const fpRot = new THREE.Matrix4().makeBasis(xAxisPlane, yAxisPlane, zAxisPlane);
+            fp.setRotationFromMatrix(fpRot);
+
+            // Note: because the shader uses vUv.x for Az and vUv.y for El, we matched X=Az and Y=El originally.
+            // Wait, Shader: angAz = (vUv.x - 0.5), angEl = (vUv.y - 0.5).
+            // Azimuth = velocity direction. Which is yAxisPlane here.
+            // So we want the plane's local X (vUv.x) to align with yAxisPlane, and local Y (vUv.y) to align with xAxisPlane.
+            // Let's swap the basis:
+            const fpRotCorrected = new THREE.Matrix4().makeBasis(yAxisPlane, xAxisPlane.clone().negate(), zAxisPlane);
+            fp.setRotationFromMatrix(fpRotCorrected);
+
+            // Add a yellow highlight box for the 3dB main beam swath
+            const wAz = Math.tan(SAR.theta_az / 2) * distToGround * 2;
+            const wEl = Math.tan(SAR.theta_el / 2) * distToGround * 2;
+            const boxGeo = new THREE.PlaneGeometry(wEl, wAz);
+            const boxEdges = new THREE.EdgesGeometry(boxGeo);
+            const boxMat = new THREE.LineBasicMaterial({ color: 0xe8d040, transparent: true, opacity: 0.8 });
+            const boxMesh = new THREE.LineSegments(boxEdges, boxMat);
+            boxMesh.position.z = 0.01; // slightly above to avoid z-fighting
+            fp.add(boxMesh);
+
+            swathGroup.add(fp);
+        }
+
+        // ============================================================
+        //  SIGNAL TIMELINE VIEW (Canvas 2D)
+        // ============================================================
+        const sigCanvas = document.getElementById('sig-canvas');
+        const sigCtx = sigCanvas.getContext('2d');
+
+        function drawSignal(dt) {
+            const sw = document.getElementById('sig-wrap');
+            const W = sw.clientWidth, H = sw.clientHeight;
+            sigCtx.fillStyle = '#171717';
+            sigCtx.fillRect(0, 0, W, H);
+            const PRI = SAR.PRI, PW = SAR.PW;
+            const twoR_near = 2 * SAR.R_near / C;
+            const twoR_far = 2 * SAR.R_far / C;
+            const twoR_center = 2 * SAR.R_slant / C;
+            const echoMod = ((twoR_near % PRI) + PRI) % PRI;
+            const echoDur = twoR_far - twoR_near;
+            const nWrap = Math.floor(twoR_center / PRI);
+            // Use consistent time base (counts in PRI units same as 3D and 2D views)
+            const simTimePRI = pulseUniforms.u_time.value;
+            // Pixels per PRI — scales with PRF (higher PRF = narrower PRIs)
+            // Target: ~4 PRIs visible at PRF=4000; scale proportionally
+            const refPRI = 1 / 4000;
+            const priW = Math.max(20, (W / 4) * (PRI / refPRI));
+            const scrollX = simTimePRI * priW;
+            const baseY = H * 0.62, ampMax = H * 0.38;
+            const numP = Math.ceil(W / Math.max(priW, 1)) + 2;
+            const startP = Math.floor(scrollX / priW);
+            const t2px = priW / PRI;
+            sigCtx.strokeStyle = '#252525'; sigCtx.lineWidth = 1;
+            for (let i = startP; i <= startP + numP; i++) {
+                const x = i * priW - scrollX;
+                sigCtx.beginPath(); sigCtx.moveTo(x, 30); sigCtx.lineTo(x, H); sigCtx.stroke();
+            }
+            sigCtx.strokeStyle = '#2a2a2a'; sigCtx.lineWidth = 0.5;
+            sigCtx.beginPath(); sigCtx.moveTo(0, baseY); sigCtx.lineTo(W, baseY); sigCtx.stroke();
+            for (let i = startP; i <= startP + numP; i++) {
+                const xO = i * priW - scrollX;
+                if (xO > W + priW || xO < -priW) continue;
+                const txW = Math.max(PW * t2px, 2);
+                const tg = sigCtx.createLinearGradient(xO, baseY - ampMax, xO, baseY);
+                tg.addColorStop(0, 'rgba(232,208,64,0.85)'); tg.addColorStop(1, 'rgba(232,180,20,0.15)');
+                sigCtx.fillStyle = tg;
+                sigCtx.fillRect(xO, baseY - ampMax, txW, ampMax);
+                const totalDur = echoDur + PW;
+                const segs = [];
+                let seg_s = echoMod, seg_rem = totalDur, seg_f0 = 0;
+                while (seg_rem > 1e-12 && segs.length < 20) {
+                    const chunk = Math.min(seg_rem, PRI - seg_s);
+                    const seg_f1 = seg_f0 + chunk / totalDur;
+                    segs.push({ s: seg_s, e: seg_s + chunk, f0: seg_f0, f1: seg_f1 });
+                    seg_s = 0; seg_rem -= chunk; seg_f0 = seg_f1;
+                }
+                segs.forEach(seg => {
+                    sigCtx.beginPath(); sigCtx.moveTo(xO + seg.s * t2px, baseY);
+                    for (let s = 0; s <= 100; s++) {
+                        const lf = s / 100, gf = seg.f0 + lf * (seg.f1 - seg.f0);
+                        const t = twoR_near + gf * totalDur;
+
+                        // Overlap of pulse [t - PW, t] and swath [twoR_near, twoR_far]
+                        const overlapStart = Math.max(t - PW, twoR_near);
+                        const overlapEnd = Math.min(t, twoR_far);
+                        const overlap = Math.max(0, overlapEnd - overlapStart);
+                        const envelope = overlap / PW;
+
+                        let g = 0;
+                        if (envelope > 0) {
+                            const R_center = ((overlapStart + overlapEnd) / 2) * C / 2;
+                            const R_orb = R_E + SAR.h;
+                            const cos_look = (R_orb * R_orb + R_center * R_center - R_E * R_E) / (2 * R_orb * Math.max(1, R_center));
+                            const look_angle_target = Math.acos(Math.max(-1, Math.min(1, cos_look)));
+                            const dep_angle_target = Math.PI / 2 - look_angle_target;
+
+                            const tx_dir = beamPatternEl(dep_angle_target - SAR.psi);
+                            let rx_dir = tx_dir; // Default for non-SCORE (Rx uses same broad static beam)
+                            let visualGainBoost = 1.0;
+
+                            if (P.score) {
+                                // SCORE: Narrow Rx pencil beam perfectly tracks the echo center across the swath.
+                                const t_center = Math.max(twoR_near, Math.min(t - PW / 2, twoR_far));
+                                const R_score_center = (t_center * C) / 2;
+
+                                const R_orb_s = R_E + SAR.h;
+                                const cos_look_s = (R_orb_s * R_orb_s + R_score_center * R_score_center - R_E * R_E) / (2 * R_orb_s * Math.max(1, R_score_center));
+                                const scoreDep = Math.PI / 2 - Math.acos(Math.max(-1, Math.min(1, cos_look_s)));
+
+                                const angOff = dep_angle_target - scoreDep;
+                                const uScore = Math.PI * (SAR.D_el * (Math.pow(10, P.scoreGain / 10) / Math.pow(10, P.gel / 10))) * Math.sin(angOff) / SAR.lam;
+                                rx_dir = Math.abs(uScore) < 1e-6 ? 1.0 : Math.pow(Math.sin(uScore) / uScore, 2);
+
+                                // Peak return amplitude matches non-SCORE at boresight
+                                visualGainBoost = 1.0;
+                            }
+
+                            // Two-way voltage is proportional to sqrt(tx_power * rx_power)
+                            g = Math.sqrt(tx_dir * rx_dir) * visualGainBoost * envelope;
+                        }
+
+                        const lt = seg.s + lf * (seg.e - seg.s);
+                        sigCtx.lineTo(xO + lt * t2px, baseY - g * ampMax * 0.6);
+                    }
+                    sigCtx.lineTo(xO + seg.e * t2px, baseY); sigCtx.closePath();
+                    const rg = sigCtx.createLinearGradient(0, baseY - ampMax * 0.5, 0, baseY);
+                    const rc = P.score ? '64,232,160' : '58,160,232';
+                    rg.addColorStop(0, `rgba(${rc},0.45)`); rg.addColorStop(1, `rgba(${rc},0.05)`);
+                    sigCtx.fillStyle = rg; sigCtx.fill();
+                    sigCtx.strokeStyle = P.score ? '#40e8a0' : '#3aa0e8'; sigCtx.lineWidth = 1; sigCtx.stroke();
+                });
+                sigCtx.fillStyle = '#333'; sigCtx.font = '8px sans-serif'; sigCtx.fillText(`${i + 1}`, xO + 3, H - 4);
+            }
+            sigCtx.fillStyle = 'rgba(23,23,23,0.9)'; sigCtx.fillRect(0, 0, W, 28);
+            sigCtx.strokeStyle = '#333'; sigCtx.beginPath(); sigCtx.moveTo(0, 28); sigCtx.lineTo(W, 28); sigCtx.stroke();
+            sigCtx.fillStyle = '#6a8aaa'; sigCtx.font = '10px sans-serif';
+            sigCtx.fillText(`PW: ${(PW * 1e6).toFixed(1)} \u03bcs`, 130, 18);
+            sigCtx.fillText(`PRI: ${(PRI * 1e6).toFixed(0)} \u03bcs`, 200, 18);
+            sigCtx.fillText(`Echo: ${(twoR_center * 1e6).toFixed(0)} \u03bcs (\u00d7${nWrap})`, 270, 18);
+            if (W > 500) sigCtx.fillText(`TBP: ${SAR.TBP.toFixed(0)}`, 380, 18);
+        }
+
+        // ============================================================
+        //  2-D RANGE-SWATH PULSE VIEW
+        // ============================================================
+        const mapCanvas = document.getElementById('map-canvas');
+        const mapCtx = mapCanvas.getContext('2d');
+        const PSPD_CONST = 250, MXRNG = 600, TLH = 70; // PSPD_CONST = constant pulse speed (px/sec)
+
+        function drawMap(dt) {
+            const mw = document.getElementById('map-wrap');
+            const W = mw.clientWidth, H = mw.clientHeight;
+            mapCtx.fillStyle = '#171717'; mapCtx.fillRect(0, 0, W, H);
+            const vH = H - TLH;
+
+            // === Curved Earth Geometry ===
+            const h_m = P.alt * 1e3;
+            const R_orbit_m = R_E + h_m;
+            const margin = 30;
+            const sY = margin; // satellite vertical position
+            const sX = W * 0.35; // satellite horizontal position
+
+            // Spherical geometry: compute gamma angles (angle at Earth center from nadir)
+            const target_grazing = Math.max(P.grz * DEG, 0.01);
+            const inc_c = Math.PI / 2 - target_grazing;
+            const sin_look_c = (R_E / R_orbit_m) * Math.sin(inc_c);
+            const look_c = Math.asin(sin_look_c);
+            const gamma_c = inc_c - look_c;
+            const psi_c = Math.PI / 2 - look_c;
+
+            const dep_n = psi_c + SAR.theta_el / 2;
+            const look_n = Math.max(Math.PI / 2 - dep_n, 0);
+            const sin_inc_n = Math.min((R_orbit_m / R_E) * Math.sin(look_n), 1.0);
+            const inc_n = Math.asin(sin_inc_n);
+            const gamma_n = inc_n - look_n;
+
+            const dep_f = Math.max(psi_c - SAR.theta_el / 2, 0.01);
+            const look_f = Math.PI / 2 - dep_f;
+            const sin_inc_f = Math.min((R_orbit_m / R_E) * Math.sin(look_f), 1.0);
+            const inc_f = Math.asin(sin_inc_f);
+            const gamma_f = inc_f - look_f;
+
+            // Scale: pixel height maps to altitude; satellite at sY, nadir at nadirY
+            const h_px = (vH - 2 * margin) * 0.9;
+            const scale = h_px / h_m;
+            const R_E_px = R_E * scale;
+            const nadirY = sY + h_px;
+
+            // Earth center is R_E_px below the nadir surface point
+            const eCx = sX;
+            const eCy = nadirY + R_E_px;
+
+            // Ground point on the arc at a given gamma angle from nadir
+            function gp(gamma) {
+                return { x: eCx + R_E_px * Math.sin(gamma), y: eCy - R_E_px * Math.cos(gamma) };
+            }
+            // Canvas arc angle for a gamma value
+            function arcA(gamma) { return -Math.PI / 2 + gamma; }
+
+            const gpC = gp(gamma_c), gpN = gp(gamma_n), gpF = gp(gamma_f);
+
+            // Slant ranges in pixels (chord distance from satellite to ground point)
+            function slantPx(gamma) {
+                const g = gp(gamma);
+                return Math.sqrt((g.x - sX) ** 2 + (g.y - sY) ** 2);
+            }
+
+            // --- Draw Earth surface arc ---
+            const arcExt = Math.max(gamma_f * 0.6, 0.015);
+            const gMin = Math.max(-arcExt, -0.15);
+            const gMax = gamma_f + arcExt;
+
+            // Earth body fill below the arc
+            const ptMin = gp(gMin), ptMax = gp(gMax);
+            mapCtx.fillStyle = 'rgba(40,80,40,0.04)';
+            mapCtx.beginPath();
+            mapCtx.arc(eCx, eCy, R_E_px, arcA(gMin), arcA(gMax));
+            mapCtx.lineTo(ptMax.x, vH + 10);
+            mapCtx.lineTo(ptMin.x, vH + 10);
+            mapCtx.closePath();
+            mapCtx.fill();
+
+            // Earth surface line (curved)
+            mapCtx.strokeStyle = '#4a6a3a'; mapCtx.lineWidth = 2;
+            mapCtx.beginPath();
+            mapCtx.arc(eCx, eCy, R_E_px, arcA(gMin), arcA(gMax));
+            mapCtx.stroke();
+
+            // --- Tx Beam cone fill (follows curved surface) ---
+            mapCtx.save(); mapCtx.globalAlpha = 0.07; mapCtx.fillStyle = '#3a8fd4';
+            mapCtx.beginPath(); mapCtx.moveTo(sX, sY);
+            mapCtx.lineTo(gpF.x, gpF.y);
+            mapCtx.arc(eCx, eCy, R_E_px, arcA(gamma_f), arcA(gamma_n), true);
+            mapCtx.closePath(); mapCtx.fill();
+            mapCtx.globalAlpha = 1; mapCtx.restore();
+
+            // Tx Beam edges
+            mapCtx.strokeStyle = 'rgba(58,143,212,0.25)'; mapCtx.lineWidth = 1; mapCtx.setLineDash([4, 4]);
+            mapCtx.beginPath(); mapCtx.moveTo(sX, sY); mapCtx.lineTo(gpF.x, gpF.y);
+            mapCtx.moveTo(sX, sY); mapCtx.lineTo(gpN.x, gpN.y); mapCtx.stroke(); mapCtx.setLineDash([]);
+
+            // Beam center
+            mapCtx.strokeStyle = 'rgba(232,208,64,0.12)'; mapCtx.beginPath();
+            mapCtx.moveTo(sX, sY); mapCtx.lineTo(gpC.x, gpC.y); mapCtx.stroke();
+
+            // --- SCORE Rx Beam ---
+            if (P.score) {
+                const PRI_s = SAR.PRI;
+                const twoR_near_s = 2 * SAR.R_near / C;
+                const twoR_far_s = 2 * SAR.R_far / C;
+                const echoMod_s = ((twoR_near_s % PRI_s) + PRI_s) % PRI_s;
+                const echoDur_s = twoR_far_s - twoR_near_s;
+                const tNow_s = (pulseUniforms.u_time.value % 1) * PRI_s;
+
+                let isRx = false, eFrac = 0;
+                const eE_s = echoMod_s + echoDur_s;
+                if (eE_s > PRI_s) {
+                    if (tNow_s >= echoMod_s) { isRx = true; eFrac = (tNow_s - echoMod_s) / echoDur_s; }
+                    else if (tNow_s <= eE_s - PRI_s) { isRx = true; eFrac = (tNow_s + PRI_s - echoMod_s) / echoDur_s; }
+                } else {
+                    if (tNow_s >= echoMod_s && tNow_s <= eE_s) { isRx = true; eFrac = (tNow_s - echoMod_s) / echoDur_s; }
+                }
+
+                if (isRx) {
+                    const t_now_s = twoR_near_s + eFrac * echoDur_s;
+                    const PW_s = SAR.PW;
+                    const t_ctr = Math.max(twoR_near_s, Math.min(t_now_s - PW_s / 2, twoR_far_s));
+                    const R_sc = (t_ctr * C) / 2;
+                    const R_orb_s = R_E + SAR.h;
+                    const cos_lk = (R_orb_s * R_orb_s + R_sc * R_sc - R_E * R_E) / (2 * R_orb_s * Math.max(1, R_sc));
+                    const rxDep = Math.PI / 2 - Math.acos(Math.max(-1, Math.min(1, cos_lk)));
+                    const thetaRx = SAR.theta_el_rx || SAR.theta_el;
+
+                    // SCORE beam gamma angles
+                    const rxDepN = rxDep + thetaRx / 2;
+                    const rxDepF = Math.max(rxDep - thetaRx / 2, 0.01);
+                    const rxLkN = Math.max(Math.PI / 2 - rxDepN, 0);
+                    const rxLkF = Math.PI / 2 - rxDepF;
+                    const rxSiN = Math.min((R_orbit_m / R_E) * Math.sin(rxLkN), 1.0);
+                    const rxSiF = Math.min((R_orbit_m / R_E) * Math.sin(rxLkF), 1.0);
+                    const rxIncN = Math.asin(rxSiN), rxIncF = Math.asin(rxSiF);
+                    const rxGN = rxIncN - rxLkN, rxGF = rxIncF - rxLkF;
+                    const rxPN = gp(rxGN), rxPF = gp(rxGF);
+
+                    mapCtx.save(); mapCtx.globalAlpha = 0.12; mapCtx.fillStyle = '#40e8a0';
+                    mapCtx.beginPath(); mapCtx.moveTo(sX, sY);
+                    mapCtx.lineTo(rxPF.x, rxPF.y);
+                    mapCtx.arc(eCx, eCy, R_E_px, arcA(rxGF), arcA(rxGN), true);
+                    mapCtx.closePath(); mapCtx.fill();
+                    mapCtx.globalAlpha = 1; mapCtx.restore();
+
+                    mapCtx.strokeStyle = 'rgba(64,232,160,0.5)'; mapCtx.lineWidth = 1; mapCtx.setLineDash([2, 5]);
+                    mapCtx.beginPath(); mapCtx.moveTo(sX, sY); mapCtx.lineTo(rxPF.x, rxPF.y);
+                    mapCtx.moveTo(sX, sY); mapCtx.lineTo(rxPN.x, rxPN.y); mapCtx.stroke(); mapCtx.setLineDash([]);
+                }
+            }
+
+            // --- Scatterers on curved surface ---
+            const nSc = 35, scPts = [];
+            for (let i = 0; i < nSc; i++) {
+                const f = i / (nSc - 1);
+                const gamma_i = gamma_n + f * (gamma_f - gamma_n);
+                const pt = gp(gamma_i);
+                const d = Math.sqrt((pt.x - sX) ** 2 + (pt.y - sY) ** 2);
+                const angle = Math.atan2(pt.y - sY, pt.x - sX);
+                scPts.push({ x: pt.x, y: pt.y, dist: d, angle: angle });
+            }
+            scPts.forEach(s => {
+                mapCtx.fillStyle = 'rgba(100,180,100,0.25)'; mapCtx.beginPath();
+                mapCtx.arc(s.x, s.y, 1.5, 0, Math.PI * 2); mapCtx.fill();
+            });
+
+            // --- Pulse Propagation (using spherical slant range for timing) ---
+            const T = pulseUniforms.u_time.value;
+            const numP = Math.max(0.1, pulseUniforms.u_numPulses.value);
+            const satToGndPx = slantPx(gamma_c);
+            const pwPx = (SAR.PW * C) * (satToGndPx / SAR.R_slant);
+
+            // Beam direction angle (from satellite to center ground point)
+            const bDir2 = Math.atan2(gpC.y - sY, gpC.x - sX);
+
+            // Draw TX Pulses
+            const maxTxPulses = Math.ceil(numP * 3);
+            for (let k = 0; k <= maxTxPulses; k++) {
+                const i = Math.floor(T) - k;
+                if (i < 0) break;
+                const d_px = ((T - i) / numP) * satToGndPx;
+                const pLead = d_px;
+                const pTrail = Math.max(0, d_px - pwPx);
+                const pWidth = pLead - pTrail;
+                if (pWidth <= 0) continue;
+                const txFrac = d_px / satToGndPx;
+                if (txFrac > 2.7) continue;
+                const aLimit = 0.7 * (P.txBright2D / 5);
+                const a = txFrac < 1.2 ? aLimit : Math.max(0, aLimit * (1 - (txFrac - 1.2) / 1.5));
+                mapCtx.strokeStyle = `rgba(232,208,64,${a})`;
+                mapCtx.lineWidth = Math.max(1, pWidth);
+                const drawR = Math.max(0.1, pTrail + pWidth / 2);
+                // Beam half-angle from satellite toward near/far edges
+                const halfA = Math.max(
+                    Math.abs(Math.atan2(gpN.y - sY, gpN.x - sX) - bDir2),
+                    Math.abs(Math.atan2(gpF.y - sY, gpF.x - sX) - bDir2)
+                );
+                mapCtx.beginPath(); mapCtx.arc(sX, sY, drawR, bDir2 - halfA, bDir2 + halfA); mapCtx.stroke();
+            }
+
+            // Draw Echo Waves & Calculate Rx Signal
+            let rxP = 0;
+            const maxRxPulses = Math.ceil(numP * 2);
+            for (let s of scPts) {
+                const delay_pulses = (s.dist / satToGndPx) * numP;
+                const newest_hit_idx = Math.floor(T - delay_pulses);
+                for (let k = 0; k <= maxRxPulses; k++) {
+                    const i = newest_hit_idx - k;
+                    if (i < 0) break;
+                    const echo_time = T - (i + delay_pulses);
+                    const r_echo = (echo_time / numP) * satToGndPx;
+                    const pLead = r_echo;
+                    const pTrail = Math.max(0, r_echo - pwPx);
+                    const pWidth = pLead - pTrail;
+                    if (pWidth <= 0) continue;
+                    const echoFrac = r_echo / s.dist;
+                    if (echoFrac > 2.3) continue;
+                    if (s.dist <= pLead && s.dist >= pTrail) {
+                        rxP += 1.0 * Math.max(0, 1 - r_echo / (satToGndPx * 3));
+                    }
+                    const ad = Math.abs(s.angle - bDir2);
+                    if (ad < Math.PI / 2) {
+                        const aLimit = 0.45 * (P.rxBright2D / 5);
+                        const a = echoFrac < 1.3 ? aLimit : Math.max(0, aLimit * (1 - (echoFrac - 1.3) / 1.0));
+                        mapCtx.strokeStyle = P.score ? `rgba(64,232,160,${a})` : `rgba(58,160,232,${a})`;
+                        mapCtx.lineWidth = Math.max(1, pWidth);
+                        const drawR = Math.max(0.1, pTrail + pWidth / 2);
+                        mapCtx.beginPath(); mapCtx.arc(s.x, s.y, drawR, 0, Math.PI * 2); mapCtx.stroke();
+                    }
+                }
+            }
+
+            // Satellite icon
+            mapCtx.fillStyle = '#ddd'; mapCtx.fillRect(sX - 10, sY - 2, 20, 5);
+            mapCtx.fillStyle = '#3a6a9a'; mapCtx.fillRect(sX - 22, sY - 1, 13, 3); mapCtx.fillRect(sX + 10, sY - 1, 13, 3);
+            mapCtx.fillStyle = '#5a8ab5'; mapCtx.font = '8px sans-serif'; mapCtx.fillText('SAT', sX - 8, sY - 6);
+            mapCtx.fillStyle = '#4a6a3a'; mapCtx.fillText('GROUND', 8, nadirY - 4);
+            mapCtx.fillStyle = '#444'; mapCtx.font = '8px sans-serif';
+            mapCtx.fillText(`R: ${(SAR.R_slant / 1e3).toFixed(0)} km`, W - 68, sY + 18);
+            mapCtx.fillText(`\u03C8: ${P.grz}\u00b0`, W - 68, sY + 28);
+
+            // Timeline
+            mapCtx.fillStyle = '#1a1a1a'; mapCtx.fillRect(0, vH, W, TLH);
+            mapCtx.strokeStyle = '#333'; mapCtx.beginPath(); mapCtx.moveTo(0, vH); mapCtx.lineTo(W, vH); mapCtx.stroke();
+            mapCtx.fillStyle = '#4a6a8a'; mapCtx.font = '8px sans-serif'; mapCtx.fillText('Rx Signal', 8, vH + 14);
+            const bW = Math.min(rxP * 40, W - 20);
+            if (bW > 0) { const bg = mapCtx.createLinearGradient(10, 0, 10 + bW, 0); bg.addColorStop(0, P.score ? '#40e8a0' : '#3aa0e8'); bg.addColorStop(1, 'rgba(0,0,0,0)'); mapCtx.fillStyle = bg; mapCtx.fillRect(10, vH + 18, bW, 6); }
+            const gndRange = SAR.gnd_near + (SAR.gnd_far - SAR.gnd_near) / 2;
+            mapCtx.fillStyle = '#555'; mapCtx.fillText(`Gnd: ${(gndRange / 1e3).toFixed(0)} km`, W - 80, vH + 14);
+        }
+
+
+
+        // ============================================================
+        //  RESIZE HANDLER
+        // ============================================================
+        function handleResize() {
+            const v3d = document.getElementById('view3d');
+            renderer.setSize(v3d.clientWidth, v3d.clientHeight);
+            cam3.aspect = v3d.clientWidth / v3d.clientHeight;
+            cam3.updateProjectionMatrix();
+
+            const sw = document.getElementById('sig-wrap');
+            sigCanvas.width = sw.clientWidth * devicePixelRatio;
+            sigCanvas.height = sw.clientHeight * devicePixelRatio;
+            sigCanvas.style.width = sw.clientWidth + 'px';
+            sigCanvas.style.height = sw.clientHeight + 'px';
+            sigCtx.scale(devicePixelRatio, devicePixelRatio);
+
+            const mw = document.getElementById('map-wrap');
+            mapCanvas.width = mw.clientWidth * devicePixelRatio;
+            mapCanvas.height = mw.clientHeight * devicePixelRatio;
+            mapCanvas.style.width = mw.clientWidth + 'px';
+            mapCanvas.style.height = mw.clientHeight + 'px';
+            mapCtx.scale(devicePixelRatio, devicePixelRatio);
+        }
+        window.addEventListener('resize', handleResize);
+
+        // ============================================================
+        //  ANIMATION LOOP
+        // ============================================================
+        let lastTime = 0;
+        let cameraInitialized = false;
+        function animate(time) {
+            try {
+                requestAnimationFrame(animate);
+                const dt = Math.min(time - lastTime, 50);
+                lastTime = time;
+
+                // Advance orbit at physically accurate speed relative to time scale
+                let timeScale = (P.tsScale === 0) ? P.prf : P.tsScale * P.prf / 50;
+                // timeScale represents (1 display-second = timeScale real-seconds / P.prf)
+                // wait, if tsScale is 0, timeScale = P.prf. Thus 1 display second = 1 real second?
+                // The intended meaning of timescale was: 1 PRI per display second.
+                // 1 PRI = 1 / P.prf real seconds.
+                // So 1 display second = 1/P.prf real seconds.
+                const real_sec_per_display_sec = 1 / timeScale;
+                const real_dt = (dt / 1000) * real_sec_per_display_sec * P.simSpeed;
+
+                // Orbit position is driven by the latitude slider, no auto-advance
+
+                // Rebuild 3D with new position
+                rebuild3D();
+
+                // Earth rotation — real rate scaled to simulation timescale
+                earthGroup.rotation.y += 7.2722e-5 * real_dt;
+
+                // Camera follows satellite smoothly
+                const satWorldPos = new THREE.Vector3().setFromMatrixPosition(satGroup.matrix);
+                if (!cameraInitialized || satWorldPos.length() < 0.1) {
+                    if (satWorldPos.length() > 0.1) {
+                        orbitControls.target.copy(satWorldPos);
+                        const localOffset = new THREE.Vector3(-6, -2, -6).applyMatrix4(new THREE.Matrix4().extractRotation(satGroup.matrix));
+                        cam3.position.copy(satWorldPos.clone().add(localOffset));
+                        cameraInitialized = true;
+                    }
+                } else {
+                    orbitControls.target.lerp(satWorldPos, 0.1);
+                }
+
+                // Advance volumetric pulses
+                pulseUniforms.u_time.value += real_dt * P.prf;
+                // Advance echo pulses (offset from Tx)
+                echoUniforms.u_time.value += real_dt * P.prf;
+
+                orbitControls.update();
+                renderer.render(scene, cam3);
+
+                // Draw 2D canvases
+                const sw = document.getElementById('sig-wrap');
+                sigCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+                drawSignal(dt);
+
+                const mw = document.getElementById('map-wrap');
+                mapCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+                drawMap(dt);
+            } catch (e) {
+                const el = document.getElementById('error-log');
+                if (el) { el.style.display = 'block'; el.innerHTML += e.message + '<br/>' + e.stack + '<br/>'; }
+            }
+        }
+
+        // ============================================================
+        //  INIT
+        // ============================================================
+        handleResize();
+        rebuild3D();
+        updateMetrics();
+        requestAnimationFrame(animate);
+    </script>
+</body>
+
+</html>

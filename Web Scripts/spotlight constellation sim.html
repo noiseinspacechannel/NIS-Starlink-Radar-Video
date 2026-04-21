@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VideoSAR Constellation Designer</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050510; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #aaccff; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 300px; /* Reduced width */
+            background: rgba(10, 15, 30, 0.9);
+            padding: 15px; /* Reduced padding */
+            border: 1px solid #4466aa;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            max-height: 95vh;
+            overflow-y: auto;
+        }
+
+        #btn-fullscreen {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 8px 15px;
+            background: rgba(10, 15, 30, 0.9);
+            border: 1px solid #4466aa;
+            border-radius: 6px;
+            color: #aaccff;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            transition: background 0.2s;
+        }
+        #btn-fullscreen:hover {
+            background: #223355;
+            color: white;
+        }
+
+        h1 { margin: 0 0 10px 0; font-size: 18px; color: #fff; border-bottom: 1px solid #4466aa; padding-bottom: 8px; }
+        h2 { font-size: 13px; color: #88aadd; margin-top: 12px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;}
+
+        .control-group { margin-bottom: 12px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; }
+        
+        label { display: block; font-size: 11px; margin-bottom: 4px; color: #ccc; }
+        input[type="range"] { width: 100%; margin-bottom: 4px; cursor: pointer; }
+        
+        .val-display { float: right; color: #44ffaa; font-weight: bold; }
+
+        .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .metric-box { background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; text-align: center; border: 1px solid #334466; }
+        .metric-val { font-size: 20px; font-weight: bold; display: block; margin-top: 3px; }
+        .metric-label { font-size: 10px; color: #88aadd; }
+
+        .good { color: #44ff44; }
+        .bad { color: #ff4444; }
+        .warn { color: #ffff44; }
+
+        #legend { font-size: 10px; margin-top: 12px; color: #888; }
+        .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; }
+
+    </style>
+</head>
+<body>
+
+<button id="btn-fullscreen">Fullscreen</button>
+
+<div id="ui-layer">
+    <h1>VideoSAR Constellation Designer</h1>
+
+    <div class="control-group">
+        <h2>Constellation Parameters</h2>
+        <label>
+            Altitude: <span id="val-alt" class="val-display">550 km</span>
+            <input type="range" id="inp-alt" min="350" max="1000" step="10" value="550">
+        </label>
+        <label>
+            Satellites: <span id="val-count" class="val-display">24</span>
+            <input type="range" id="inp-count" min="1" max="10000" step="1" value="24">
+        </label>
+        <div style="font-size: 10px; color: #aaa; margin-top:4px;">
+            Planes: <span id="disp-planes">--</span> | Sats/Plane: <span id="disp-sats">1</span> (Distributed)
+        </div>
+    </div>
+
+    <div class="control-group">
+        <h2>Simulation Control</h2>
+        <label>
+            Time Speed: <span id="val-speed" class="val-display">20x</span>
+            <input type="range" id="inp-speed" min="1" max="200" step="1" value="20">
+        </label>
+        <button onclick="resetStats()" style="width:100%; padding:6px; background:#223355; border:1px solid #4466aa; color:white; cursor:pointer; font-size: 11px;">Reset Statistics</button>
+    </div>
+
+    <h2>Real-Time Performance</h2>
+    <div class="metric-grid">
+        <div class="metric-box">
+            <span class="metric-label">Mean Revisit</span>
+            <span id="met-revisit" class="metric-val warn">-- m</span>
+        </div>
+        <div class="metric-box">
+            <span class="metric-label">Access Window</span>
+            <span id="met-window" class="metric-val">0 s</span>
+        </div>
+        <div class="metric-box" style="grid-column: span 2;">
+            <span class="metric-label">Temporal Coverage</span>
+            <span id="met-coverage" class="metric-val">0.0%</span>
+        </div>
+    </div>
+
+    <div class="control-group" style="margin-top: 12px;">
+        <h2>SAR Geometry Constraints</h2>
+        <div style="font-size: 11px; line-height: 1.4;">
+            Look Angle: <span style="color:white">20° - 55°</span> (Off-Nadir)<br>
+            Squint Angle: <span style="color:white">±45°</span> (Broadside)<br>
+            Inclination: <span style="color:white">58°</span>
+        </div>
+    </div>
+
+    <div id="legend">
+        <div><span class="dot" style="background:#00ffff"></span> Satellite (Idle)</div>
+        <div><span class="dot" style="background:#ffff00"></span> Satellite (Imaging)</div>
+        <div><span class="dot" style="background:#ff0000"></span> Target (Nevada, USA)</div>
+        <div><span class="dot" style="background:rgba(255,255,0,0.3)"></span> Radar Beam</div>
+    </div>
+</div>
+
+<div id="canvas-container"></div>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+    // --- Constants ---
+    const EARTH_RADIUS_KM = 6371;
+    const SCALE = 0.01; // 1 unit = 100km
+    const EARTH_R_UNITS = EARTH_RADIUS_KM * SCALE;
+    
+    // SAR Geometry Constraints
+    const MIN_LOOK_ANGLE = 20 * (Math.PI/180);
+    const MAX_LOOK_ANGLE = 55 * (Math.PI/180);
+    const MAX_SQUINT = 45 * (Math.PI/180); // Deviation from 90 deg broadside
+
+    // Target (Nevada Test Range approx)
+    const TARGET_LAT = 37.2;
+    const TARGET_LON = -115.8;
+
+    // --- State ---
+    const state = {
+        altitudeKm: 550,
+        numSats: 24,
+        speed: 20,
+        simTime: 0,
+        stats: {
+            totalTime: 0,
+            coveredTime: 0,
+            gaps: [],
+            currentGap: 0,
+            currentAccess: 0,
+            isCovered: false,
+            lastCoveredState: false
+        }
+    };
+
+    // --- Scene Setup ---
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000510, 0.002);
+    
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.set(120, 40, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true }); // Improved depth
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000510);
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.autoRotate = false; 
+    controls.enablePan = false;
+
+    // Lighting
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    sunLight.position.set(200, 50, 100);
+    scene.add(sunLight);
+    scene.add(new THREE.AmbientLight(0x404060));
+
+    // Stars
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = [];
+    for(let i=0; i<5000; i++) starPos.push((Math.random()-0.5)*2000, (Math.random()-0.5)*2000, (Math.random()-0.5)*2000);
+    starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xffffff, size:0.5})));
+
+    // Earth Group (Rotates)
+    const earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+
+    // Earth Mesh
+    // FIX: Removed transparency so satellites are occluded by the earth
+    const earthMat = new THREE.MeshPhongMaterial({ 
+        color: 0x112244, 
+        emissive: 0x000510, // Darkened emissive slightly
+        specular: 0x050505, // Reduced specular highlight
+        shininess: 5,
+        transparent: false, 
+        opacity: 1.0 
+    });
+    const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R_UNITS, 64, 64), earthMat);
+    earthGroup.add(earth);
+
+    // Texture
+    new THREE.TextureLoader().load('https://upload.wikimedia.org/wikipedia/commons/8/83/Equirectangular_projection_SW.jpg', (tex) => {
+        earth.material.map = tex;
+        // Changed from 0x666666 to 0xaaaaaa to brighten it up without being fully white
+        earth.material.color.setHex(0xaaaaaa); 
+        earth.material.needsUpdate = true;
+    });
+
+    // Wireframe atmosphere
+    const atmo = new THREE.Mesh(
+        new THREE.SphereGeometry(EARTH_R_UNITS + 0.2, 64, 64),
+        new THREE.MeshBasicMaterial({ color: 0x4466aa, wireframe: true, transparent: true, opacity: 0.1 })
+    );
+    earthGroup.add(atmo);
+
+    // Target Marker
+    function latLonToVec(lat, lon, r) {
+        const phi = (90 - lat) * (Math.PI / 180);
+        const theta = (lon + 180) * (Math.PI / 180);
+        return new THREE.Vector3(
+            -(r * Math.sin(phi) * Math.cos(theta)),
+            r * Math.cos(phi),
+            r * Math.sin(phi) * Math.sin(theta)
+        );
+    }
+    const targetPosLocal = latLonToVec(TARGET_LAT, TARGET_LON, EARTH_R_UNITS);
+    const targetMarker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xff0000 })
+    );
+    targetMarker.position.copy(targetPosLocal);
+    earthGroup.add(targetMarker);
+
+    // Add a visual ring on the ground to make target easier to spot
+    const targetRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.8, 1.0, 32),
+        new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide, transparent:true, opacity:0.6 })
+    );
+    targetRing.position.copy(targetPosLocal);
+    targetRing.lookAt(new THREE.Vector3(0,0,0));
+    earthGroup.add(targetRing);
+
+    // --- Satellites ---
+    let satellites = []; // Array of objects { mesh, angle, raan, planeIndex }
+    const satGeo = new THREE.BoxGeometry(0.6, 0.2, 0.4);
+    const satMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+    
+    // Reusable Beam Geometry (Cone)
+    const beamGeo = new THREE.ConeGeometry(0.6, 1, 32, 1, true);
+    beamGeo.translate(0, -0.5, 0); // Pivot at top
+    beamGeo.rotateX(-Math.PI/2); // Point along Z
+    const beamMat = new THREE.MeshBasicMaterial({ 
+        color: 0xffff00, 
+        transparent: true, 
+        opacity: 0.15, 
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+    });
+
+    function createConstellation() {
+        // Clear existing
+        satellites.forEach(s => {
+            scene.remove(s.mesh);
+            if(s.beam) scene.remove(s.beam);
+        });
+        satellites = [];
+
+        const n = state.numSats;
+        
+        // Update UI Text to reflect distributed nature
+        document.getElementById('disp-planes').innerText = n; 
+        document.getElementById('disp-sats').innerText = "1";
+
+        const inclination = 58 * (Math.PI/180); 
+        
+        // Use Golden Angle for RAAN to maximize spread and avoid "shell" appearance
+        // Golden Angle = PI * (3 - sqrt(5)) radians ~= 137.5 degrees
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+        for(let i=0; i<n; i++) {
+            const mesh = new THREE.Mesh(satGeo, satMat.clone());
+            const beam = new THREE.Mesh(beamGeo, beamMat);
+            beam.visible = false;
+            
+            scene.add(mesh);
+            scene.add(beam); 
+
+            satellites.push({
+                mesh: mesh,
+                beam: beam,
+                // Distribute Mean Anomaly evenly across the set to separate them in latitude/time
+                angle: (i / n) * Math.PI * 2, 
+                // Distribute RAAN using Golden Angle to separate them in longitude
+                raan: (i * goldenAngle) % (Math.PI * 2),
+                inclination: inclination
+            });
+        }
+        resetStats();
+    }
+
+    // --- Stats Logic ---
+    function resetStats() {
+        state.stats = {
+            totalTime: 0,
+            coveredTime: 0,
+            gaps: [],
+            currentGap: 0,
+            currentAccess: 0,
+            isCovered: false,
+            lastCoveredState: false
+        };
+        updateStatsUI();
+    }
+
+    function updateStatsUI() {
+        const s = state.stats;
+        const coverage = s.totalTime > 0 ? (s.coveredTime / s.totalTime * 100).toFixed(1) : "0.0";
+        
+        // Revisit Time (Average Gap)
+        let avgGap = 0;
+        if(s.gaps.length > 0) {
+            const sum = s.gaps.reduce((a,b) => a+b, 0);
+            avgGap = sum / s.gaps.length;
+        } else if (!s.isCovered && s.currentGap > 0) {
+             avgGap = s.currentGap; // If we haven't closed a gap yet
+        }
+        
+        const avgGapMin = (avgGap / 60).toFixed(1);
+
+        const elRev = document.getElementById('met-revisit');
+        elRev.innerText = avgGapMin + " m";
+        elRev.className = "metric-val " + (avgGap < 600 ? "good" : (avgGap < 1800 ? "warn" : "bad"));
+
+        const elCov = document.getElementById('met-coverage');
+        elCov.innerText = coverage + "%";
+        
+        const elWin = document.getElementById('met-window');
+        elWin.innerText = s.isCovered ? s.currentAccess.toFixed(0) + " s" : "--";
+    }
+
+    // --- Simulation Loop ---
+    function update(dt) {
+        // Earth Rotation
+        const earthRot = (2 * Math.PI / 86400) * dt;
+        earthGroup.rotation.y += earthRot;
+
+        // Stats Update
+        state.stats.totalTime += dt;
+
+        // Satellite Motion
+        const orbitR = EARTH_R_UNITS + (state.altitudeKm * SCALE);
+        const orbitSpeed = Math.sqrt(398600 / (EARTH_RADIUS_KM + state.altitudeKm)) * SCALE; 
+        
+        const omega = orbitSpeed / orbitR;
+
+        // Target World Position
+        const targetWorld = targetPosLocal.clone().applyMatrix4(earthGroup.matrixWorld);
+        
+        // Horizon Distance check for Occultation
+        const horizonDist = Math.sqrt(Math.pow(orbitR, 2) - Math.pow(EARTH_R_UNITS, 2));
+
+        let activeCount = 0;
+
+        satellites.forEach(sat => {
+            // FIX: Subtract omega to flip orbit direction to Prograde relative to Earth visual
+            sat.angle -= omega * dt;
+
+            // Calculate Position (Inertial Frame)
+            const cx = orbitR * Math.cos(sat.angle);
+            const cy = orbitR * Math.sin(sat.angle);
+            const v = new THREE.Vector3(cx, 0, cy);
+            
+            // Rotations
+            v.applyAxisAngle(new THREE.Vector3(1,0,0), sat.inclination);
+            v.applyAxisAngle(new THREE.Vector3(0,1,0), sat.raan);
+            
+            sat.mesh.position.copy(v);
+            
+            // --- SAR Geometry Check ---
+            const vecToTarget = targetWorld.clone().sub(sat.mesh.position);
+            const distToTarget = vecToTarget.length();
+            const vecNadir = sat.mesh.position.clone().normalize().negate(); 
+            const vecSatVel = v.clone().cross(new THREE.Vector3(0,1,0)).normalize(); 
+            
+            // Look Angle Check
+            const angleOffNadir = vecNadir.angleTo(vecToTarget);
+            
+            let isValid = false;
+            const isVisible = distToTarget < horizonDist;
+
+            if (isVisible && angleOffNadir >= MIN_LOOK_ANGLE) { 
+                 if (angleOffNadir <= MAX_LOOK_ANGLE) {
+                    // Squint Angle Check
+                    const angleToVel = vecSatVel.angleTo(vecToTarget);
+                    const deviationFromBroadside = Math.abs(angleToVel - (Math.PI/2));
+                    
+                    if (deviationFromBroadside <= MAX_SQUINT) {
+                        isValid = true;
+                    }
+                 }
+            }
+
+            if(isValid) {
+                sat.mesh.material.color.setHex(0xffff00);
+                sat.beam.visible = true;
+                sat.beam.position.copy(sat.mesh.position);
+                sat.beam.lookAt(targetWorld);
+                sat.beam.scale.set(1, 1, distToTarget);
+                activeCount++;
+            } else {
+                sat.mesh.material.color.setHex(0x00ffff);
+                sat.beam.visible = false;
+            }
+        });
+
+        // Metrics Logic
+        const isCoveredNow = activeCount > 0;
+        
+        if (isCoveredNow) {
+            state.stats.coveredTime += dt;
+            state.stats.currentAccess += dt;
+            if (!state.stats.isCovered) {
+                if (state.stats.currentGap > 0) {
+                    state.stats.gaps.push(state.stats.currentGap);
+                }
+                state.stats.currentGap = 0;
+            }
+            state.stats.isCovered = true;
+        } else {
+            state.stats.currentGap += dt;
+            if (state.stats.isCovered) {
+                state.stats.currentAccess = 0;
+            }
+            state.stats.isCovered = false;
+        }
+        
+        if(Math.floor(state.stats.totalTime) % 2 === 0) updateStatsUI();
+    }
+
+    // --- Animation Loop ---
+    let lastTime = performance.now();
+    function animate() {
+        requestAnimationFrame(animate);
+        const now = performance.now();
+        const dt = (now - lastTime) / 1000;
+        lastTime = now;
+
+        update(dt * state.speed);
+        
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
+    // --- Inputs ---
+    const inpAlt = document.getElementById('inp-alt');
+    const inpCount = document.getElementById('inp-count');
+    const inpSpeed = document.getElementById('inp-speed');
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+
+    // Fullscreen Logic
+    btnFullscreen.addEventListener('click', () => {
+        document.documentElement.requestFullscreen();
+        btnFullscreen.style.display = 'none';
+        document.getElementById('ui-layer').style.display = 'none';
+    });
+    
+    // Optional: Restore button if they exit fullscreen via ESC
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+            btnFullscreen.style.display = 'block';
+            document.getElementById('ui-layer').style.display = 'block';
+        }
+    });
+
+    inpAlt.addEventListener('input', (e) => {
+        state.altitudeKm = parseInt(e.target.value);
+        document.getElementById('val-alt').innerText = state.altitudeKm + " km";
+        resetStats();
+    });
+
+    inpCount.addEventListener('input', (e) => {
+        state.numSats = parseInt(e.target.value);
+        document.getElementById('val-count').innerText = state.numSats;
+        createConstellation(); 
+    });
+
+    inpSpeed.addEventListener('input', (e) => {
+        state.speed = parseInt(e.target.value);
+        document.getElementById('val-speed').innerText = state.speed + "x";
+    });
+
+    // Init
+    createConstellation();
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+</script>
+</body>
+</html>

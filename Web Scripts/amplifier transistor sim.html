@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GaN MOSFET RF Simulator</title>
+    <style>
+        :root {
+            --bg-color: #171717;
+            --panel-bg: #222222;
+            --border: #333333;
+            --text-main: #f0f0f0;
+            --text-muted: #aaaaaa;
+            --vgs-color: #00e5ff;
+            --vds-color: #ffaa00;
+            --vdd-color: #ff3366;
+            --rf-out-color: #00ff66;
+            --danger: #ff4444;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 400;
+            letter-spacing: 1px;
+        }
+
+        h1 span {
+            color: var(--vgs-color);
+            font-weight: 700;
+        }
+
+        #fs-btn {
+            background-color: transparent;
+            color: var(--vgs-color);
+            border: 1px solid var(--vgs-color);
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+
+        #fs-btn:hover {
+            background-color: rgba(0, 229, 255, 0.1);
+        }
+
+        .main-container {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .controls {
+            width: 310px;
+            min-width: 310px;
+            background-color: var(--panel-bg);
+            border-radius: 8px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            border: 1px solid var(--border);
+            overflow-y: auto;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .control-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .val-display {
+            font-family: monospace;
+            font-size: 14px;
+            color: #fff;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: var(--vgs-color);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
+        }
+
+        #slider-vdd::-webkit-slider-thumb {
+            background: var(--vdd-color);
+            box-shadow: 0 0 8px rgba(255, 51, 102, 0.5);
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #444;
+            border-radius: 2px;
+        }
+
+        select,
+        button.action-btn {
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        select:hover,
+        button.action-btn:hover {
+            background-color: #444;
+            border-color: #777;
+        }
+
+        .danger-btn {
+            background-color: rgba(255, 68, 68, 0.1) !important;
+            color: var(--danger) !important;
+            border-color: var(--danger) !important;
+            font-weight: bold;
+            display: none;
+            text-transform: uppercase;
+            box-shadow: 0 0 10px rgba(255, 68, 68, 0.2);
+        }
+
+        .danger-btn:hover {
+            background-color: rgba(255, 68, 68, 0.2) !important;
+        }
+
+        .display-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .readouts {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+        }
+
+        .readout-box {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .readout-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .readout-value {
+            font-size: 20px;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+        }
+
+        .scope-container {
+            flex: 1;
+            background-color: #080808;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8);
+        }
+
+        .scope-label {
+            position: absolute;
+            top: 10px;
+            left: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            pointer-events: none;
+            z-index: 2;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .fried-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 0, 0, 0.2);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+            z-index: 10;
+        }
+
+        .fried-title {
+            color: var(--danger);
+            font-size: 48px;
+            font-weight: 900;
+            text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+
+        .fried-subtext {
+            font-size: 18px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 16px;
+            border-radius: 4px;
+        }
+
+        .info-text {
+            font-size: 11px;
+            color: #777;
+            line-height: 1.5;
+            margin-top: auto;
+        }
+
+        hr.sep {
+            border: none;
+            border-top: 1px solid #333;
+            width: 100%;
+            margin: 2px 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1><span>GaN</span> MOSFET RF Amplifier</h1>
+        <button id="fs-btn">Fullscreen</button>
+    </header>
+
+    <div class="main-container">
+        <div class="controls">
+            <div class="control-group">
+                <div class="control-header">
+                    <span style="color: var(--vgs-color)">Gate DC Bias (V<sub>GS,DC</sub>)</span>
+                    <span id="val-vdc" class="val-display">2.5 V</span>
+                </div>
+                <input type="range" id="slider-vdc" min="-6" max="6" step="0.05" value="2.5">
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>AC Input Amplitude</span>
+                    <span id="val-vac" class="val-display">1.0 V</span>
+                </div>
+                <input type="range" id="slider-vac" min="0" max="8" step="0.1" value="1.0">
+            </div>
+
+            <div class="control-group">
+                <div class="control-header"><span>RF Signal Modulation</span></div>
+                <select id="select-mod">
+                    <option value="dc">DC Only (No AC)</option>
+                    <option value="sine" selected>Sine Wave</option>
+                    <option value="lfm">LFM Up-Chirp</option>
+                    <option value="qpsk">QPSK</option>
+                    <option value="64qam">64-QAM</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Scope Speed</span>
+                    <span id="val-speed" class="val-display">2.0 steps/frame</span>
+                </div>
+                <input type="range" id="slider-speed" min="0.1" max="16" step="0.1" value="2.0">
+            </div>
+
+            <hr class="sep">
+
+            <div class="control-group">
+                <div class="control-header"><span>Transistor Type</span></div>
+                <select id="select-type">
+                    <option value="nmos" selected>N-Channel (Conducts on Peaks)</option>
+                    <option value="pmos">P-Channel (Conducts on Troughs)</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span style="color: var(--vdd-color)">Supply Voltage (V<sub>DD</sub>)</span>
+                    <span id="val-vdd" class="val-display">28 V</span>
+                </div>
+                <input type="range" id="slider-vdd" min="10" max="100" step="1" value="28">
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Drain Load (R<sub>D</sub>)</span>
+                    <span id="val-rd" class="val-display">25 Ω</span>
+                </div>
+                <input type="range" id="slider-rd" min="5" max="200" step="1" value="25">
+            </div>
+
+            <button id="btn-reset-eff" class="action-btn">Reset Average Efficiency</button>
+            <button id="btn-replace" class="action-btn danger-btn">Replace Fried Transistor</button>
+
+            <div class="info-text">
+                <b>Topology:</b> Common-Source with resistive drain load.<br>
+                <b>Model:</b> Continuous EKV MOSFET model.<br>
+                <b>Threshold:</b> ~1.5V &nbsp;|&nbsp; <b>Breakdown:</b> 120V<br>
+                <b>Gate Max:</b> 8V &nbsp;|&nbsp; <b>Thermal:</b> 100W<br>
+                <i>Tip: Set DC bias above threshold (~2–3V), then add AC to see amplification. Output is inverted and AC-coupled.</i>
+            </div>
+        </div>
+
+        <div class="display-area">
+            <div class="readouts">
+                <div class="readout-box">
+                    <div class="readout-label">V<sub>GS</sub> (Gate)</div>
+                    <div class="readout-value" id="read-vgs" style="color: var(--vgs-color)">0.00 V</div>
+                </div>
+                <div class="readout-box">
+                    <div class="readout-label">V<sub>DD</sub> (Supply)</div>
+                    <div class="readout-value" id="read-vdd" style="color: var(--vdd-color)">0.00 V</div>
+                </div>
+                <div class="readout-box">
+                    <div class="readout-label">Output Power</div>
+                    <div class="readout-value" id="read-pout" style="color: var(--vds-color)">0.0 W</div>
+                </div>
+                <div class="readout-box">
+                    <div class="readout-label">Inst. Efficiency</div>
+                    <div class="readout-value" id="read-inst-eff" style="color: #00ff66">0.0 %</div>
+                </div>
+                <div class="readout-box">
+                    <div class="readout-label">Avg Efficiency</div>
+                    <div class="readout-value" id="read-avg-eff" style="color: #00ff66">0.0 %</div>
+                </div>
+            </div>
+
+            <!-- INPUT SCOPE -->
+            <div class="scope-container">
+                <div class="scope-label" style="color: var(--vgs-color)">⏤ Input Signal (V<sub>GS</sub>)</div>
+                <canvas id="inputCanvas"></canvas>
+            </div>
+
+            <!-- OUTPUT VOLTAGE SCOPE -->
+            <div class="scope-container">
+                <div class="scope-label" style="color: var(--rf-out-color)">⏤ Output Voltage (V<sub>DS</sub>)</div>
+                <canvas id="vdsCanvas"></canvas>
+            </div>
+
+            <!-- OUTPUT POWER SCOPE -->
+            <div class="scope-container">
+                <div class="scope-label" style="color: var(--vds-color)">⏤ Output Power (P<sub>diss</sub>)</div>
+                <canvas id="powerCanvas"></canvas>
+                <div class="fried-overlay" id="fried-overlay">
+                    <div class="fried-title">DEVICE FRIED</div>
+                    <div class="fried-subtext" id="fried-reason">Breakdown Exceeded</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Fullscreen API ---
+        const fsBtn = document.getElementById('fs-btn');
+        fsBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => console.log(err));
+            }
+        });
+        document.addEventListener('fullscreenchange', () => {
+            fsBtn.style.display = document.fullscreenElement ? 'none' : 'block';
+        });
+
+        // --- UI Bindings ---
+        const slider_vdc = document.getElementById('slider-vdc');
+        const slider_vac = document.getElementById('slider-vac');
+        const slider_vdd = document.getElementById('slider-vdd');
+        const slider_rd = document.getElementById('slider-rd');
+        const slider_speed = document.getElementById('slider-speed');
+        const select_mod = document.getElementById('select-mod');
+        const select_type = document.getElementById('select-type');
+        const btn_reset_eff = document.getElementById('btn-reset-eff');
+        const btn_replace = document.getElementById('btn-replace');
+
+        let V_DC = parseFloat(slider_vdc.value);
+        let V_AC_amp = parseFloat(slider_vac.value);
+        let VDD = parseFloat(slider_vdd.value);
+        let RD = parseFloat(slider_rd.value);
+        let mod_type = select_mod.value;
+        let trans_type = select_type.value;
+        let sim_speed = parseFloat(slider_speed.value);
+        let step_accumulator = 0;
+
+        slider_vdc.addEventListener('input', (e) => {
+            V_DC = parseFloat(e.target.value);
+            document.getElementById('val-vdc').innerText = V_DC.toFixed(2) + ' V';
+            recomputeQuiescent();
+        });
+        slider_vac.addEventListener('input', (e) => {
+            V_AC_amp = parseFloat(e.target.value);
+            document.getElementById('val-vac').innerText = V_AC_amp.toFixed(1) + ' V';
+        });
+        slider_vdd.addEventListener('input', (e) => {
+            VDD = parseFloat(e.target.value);
+            document.getElementById('val-vdd').innerText = VDD.toFixed(0) + ' V';
+            recomputeQuiescent();
+        });
+        slider_rd.addEventListener('input', (e) => {
+            RD = parseFloat(e.target.value);
+            document.getElementById('val-rd').innerText = RD.toFixed(0) + ' Ω';
+            recomputeQuiescent();
+        });
+        slider_speed.addEventListener('input', (e) => {
+            sim_speed = parseFloat(e.target.value);
+            document.getElementById('val-speed').innerText = sim_speed.toFixed(1) + ' steps/frame';
+        });
+        select_mod.addEventListener('change', (e) => { mod_type = e.target.value; });
+        select_type.addEventListener('change', (e) => { 
+            let old_type = trans_type;
+            trans_type = e.target.value; 
+            // Auto-flip DC bias when switching types so it stays in the correct operating region
+            if ((old_type === 'nmos' && trans_type === 'pmos') || 
+                (old_type === 'pmos' && trans_type === 'nmos')) {
+                V_DC = -V_DC;
+                slider_vdc.value = V_DC;
+                document.getElementById('val-vdc').innerText = V_DC.toFixed(2) + ' V';
+            }
+            recomputeQuiescent();
+            history = [];
+        });
+
+        btn_reset_eff.addEventListener('click', () => {
+            P_dc_acc = 0;
+            P_rf_acc = 0;
+            document.getElementById('read-inst-eff').innerText = "0.0 %";
+            document.getElementById('read-avg-eff').innerText = "0.0 %";
+        });
+
+        btn_replace.addEventListener('click', () => {
+            isFried = false;
+            document.getElementById('fried-overlay').style.display = 'none';
+            btn_replace.style.display = 'none';
+
+            if (VDD > 80) { VDD = 50; slider_vdd.value = VDD; document.getElementById('val-vdd').innerText = '50 V'; }
+            if (V_DC > 4) { V_DC = 2.5; slider_vdc.value = V_DC; document.getElementById('val-vdc').innerText = '2.50 V'; }
+
+            history = [];
+            P_dc_acc = 0; P_rf_acc = 0;
+            P_dc_inst_avg = 0; P_rf_inst_avg = 0;
+            recomputeQuiescent();
+        });
+
+        // --- Canvas Setup ---
+        const inputCanvas = document.getElementById('inputCanvas');
+        const vdsCanvas = document.getElementById('vdsCanvas');
+        const powerCanvas = document.getElementById('powerCanvas');
+        const ctxIn = inputCanvas.getContext('2d');
+        const ctxVds = vdsCanvas.getContext('2d');
+        const ctxPow = powerCanvas.getContext('2d');
+
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            [inputCanvas, vdsCanvas, powerCanvas].forEach(c => {
+                const parent = c.parentElement;
+                c.width = parent.clientWidth * dpr;
+                c.height = parent.clientHeight * dpr;
+                c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+            });
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // --- Transistor Physics ---
+        const VTH = 1.5;
+        const N_VT = 0.15;
+        const K = 1.8;
+        const ALPHA = 0.5;
+        const LAMBDA = 0.002;
+        const VBR = 120;
+        const PMAX = 100;
+
+        let t = 0;
+        const dt = 0.005;
+        let history = [];
+        const MAX_HIST = 600;
+
+        let isFried = false;
+        let Vds_quiescent = VDD; // will be computed
+
+        // Efficiency accumulators
+        let P_dc_acc = 0, P_rf_acc = 0;
+        let P_dc_inst_avg = 0, P_rf_inst_avg = 0;
+
+        // --- Compute drain current from EKV model ---
+        function compute_Id(Vgs, Vds) {
+            if (Vds < 0) return 0; // body diode off for simplicity
+            
+            // Effective Vgs mapping:
+            // NMOS: Conducts when Vgs > VTH (+1.5V)
+            // PMOS: Conducts when Vgs < -VTH. We invert Vgs to reuse the N-channel math.
+            let V_drive = (trans_type === 'nmos') ? Vgs : -Vgs;
+            
+            let exp_term = Math.exp(Math.min((V_drive - VTH) / N_VT, 50));
+            let Vgst = N_VT * Math.log(1 + exp_term);
+            let Isat = K * Vgst * Vgst;
+            return Isat * Math.tanh(ALPHA * Vds) * (1 + LAMBDA * Vds);
+        }
+
+        // --- Solve operating point: Vds = Vdd - Id * Rd (resistive load line) ---
+        function solve_operating_point(Vgs, Vdd, Rd) {
+            if (isFried) return { Vds: 0, Id: 0 };
+
+            // Binary search: find Vds where Id(Vgs, Vds) = (Vdd - Vds) / Rd
+            let low = 0, high = Vdd;
+            let guess = Vdd / 2, Id = 0;
+
+            for (let i = 0; i < 30; i++) {
+                guess = (low + high) / 2;
+                Id = compute_Id(Vgs, guess);
+                let Vds_loadline = Vdd - Id * Rd;
+
+                if (Vds_loadline > guess) low = guess;
+                else high = guess;
+            }
+            Id = compute_Id(Vgs, guess);
+            return { Vds: guess, Id: Id };
+        }
+
+        // --- Compute quiescent point (DC bias only, no AC) ---
+        function recomputeQuiescent() {
+            let result = solve_operating_point(V_DC, VDD, RD);
+            Vds_quiescent = result.Vds;
+        }
+        recomputeQuiescent();
+
+        function triggerFry(reason) {
+            isFried = true;
+            document.getElementById('fried-overlay').style.display = 'flex';
+            document.getElementById('fried-reason').innerText = reason;
+            btn_replace.style.display = 'block';
+        }
+
+        // --- Signal Generation ---
+        const fc = 2.0;
+        let lfm_phase = 0;
+        let last_sym_t = -100;
+        let target_I = 0, target_Q = 0;
+        let filtered_I = 0, filtered_Q = 0;
+
+        function get_ac_signal(time, type) {
+            if (type === 'dc') {
+                return 0;
+            } else if (type === 'sine') {
+                return Math.sin(2 * Math.PI * fc * time);
+            } else if (type === 'lfm') {
+                const sweep_period = 5.0;
+                let mod_t = time % sweep_period;
+                let f = 0.5 + 4.5 * (mod_t / sweep_period);
+                lfm_phase += 2 * Math.PI * f * dt;
+                return Math.sin(lfm_phase);
+            } else {
+                const symbol_period = 0.5;
+                if (time - last_sym_t >= symbol_period) {
+                    last_sym_t = time;
+                    if (type === 'qpsk') {
+                        target_I = Math.random() > 0.5 ? 0.707 : -0.707;
+                        target_Q = Math.random() > 0.5 ? 0.707 : -0.707;
+                    } else if (type === '64qam') {
+                        const levels = [-7, -5, -3, -1, 1, 3, 5, 7];
+                        target_I = levels[Math.floor(Math.random() * 8)] / 9.899;
+                        target_Q = levels[Math.floor(Math.random() * 8)] / 9.899;
+                    }
+                }
+                const tau = 0.1;
+                filtered_I += (target_I - filtered_I) * (dt / tau);
+                filtered_Q += (target_Q - filtered_Q) * (dt / tau);
+
+                let phase = 2 * Math.PI * fc * time;
+                return filtered_I * Math.cos(phase) - filtered_Q * Math.sin(phase);
+            }
+        }
+
+        // --- Rendering ---
+        function drawGrid(ctx, w, h) {
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 1; i < 10; i++) {
+                let x = w * i / 10;
+                ctx.moveTo(x, 0); ctx.lineTo(x, h);
+            }
+            for (let i = 1; i < 6; i++) {
+                let y = h * i / 6;
+                ctx.moveTo(0, y); ctx.lineTo(w, y);
+            }
+            ctx.stroke();
+
+            // Center line (0V reference)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function renderInputScope() {
+            const dpr = window.devicePixelRatio || 1;
+            const w = inputCanvas.width / dpr;
+            const h = inputCanvas.height / dpr;
+            ctxIn.clearRect(0, 0, w, h);
+
+            drawGrid(ctxIn, w, h);
+            if (history.length < 2) return;
+
+            // Fixed axis: -8V to +8V (gate breakdown limits)
+            const lo = -8;
+            const hi = 8;
+
+            const mapX = (idx) => (idx / (history.length - 1)) * w;
+            const mapY = (v) => h - ((v - lo) / (hi - lo)) * h;
+
+            // Scale labels
+            ctxIn.fillStyle = 'rgba(255,255,255,0.3)';
+            ctxIn.font = '11px monospace';
+            ctxIn.fillText('+8V', w - 35, 14);
+            ctxIn.fillText('-8V', w - 35, h - 4);
+
+            // 0V reference line
+            let y0 = mapY(0);
+            if (y0 > 10 && y0 < h - 10) {
+                ctxIn.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+                ctxIn.setLineDash([4, 4]);
+                ctxIn.beginPath();
+                ctxIn.moveTo(0, y0); ctxIn.lineTo(w, y0);
+                ctxIn.stroke();
+                ctxIn.setLineDash([]);
+                ctxIn.fillStyle = 'rgba(255,255,255,0.25)';
+                ctxIn.fillText('0V', 4, y0 - 4);
+            }
+
+            // DC Bias reference line
+            ctxIn.strokeStyle = 'rgba(0, 229, 255, 0.25)';
+            ctxIn.setLineDash([3, 5]);
+            ctxIn.beginPath();
+            let yQ = mapY(V_DC);
+            ctxIn.moveTo(0, yQ); ctxIn.lineTo(w, yQ);
+            ctxIn.stroke();
+            ctxIn.setLineDash([]);
+            ctxIn.fillStyle = 'rgba(0, 229, 255, 0.3)';
+            ctxIn.fillText('DC Bias', 4, yQ - 4);
+
+            // Trace
+            ctxIn.beginPath();
+            ctxIn.strokeStyle = '#00e5ff';
+            ctxIn.lineWidth = 2;
+            ctxIn.lineJoin = 'round';
+            for (let i = 0; i < history.length; i++) {
+                let x = mapX(i), y = mapY(history[i].vgs_total);
+                if (i === 0) ctxIn.moveTo(x, y); else ctxIn.lineTo(x, y);
+            }
+            ctxIn.stroke();
+        }
+
+        function renderVdsScope() {
+            const dpr = window.devicePixelRatio || 1;
+            const w = vdsCanvas.width / dpr;
+            const h = vdsCanvas.height / dpr;
+            ctxVds.clearRect(0, 0, w, h);
+
+            // Grid
+            ctxVds.strokeStyle = '#1a1a1a';
+            ctxVds.lineWidth = 1;
+            ctxVds.beginPath();
+            for (let i = 1; i < 10; i++) {
+                let x = w * i / 10;
+                ctxVds.moveTo(x, 0); ctxVds.lineTo(x, h);
+            }
+            for (let i = 1; i < 6; i++) {
+                let y = h * i / 6;
+                ctxVds.moveTo(0, y); ctxVds.lineTo(w, y);
+            }
+            ctxVds.stroke();
+
+            if (history.length < 2) return;
+
+            // Fixed axis: 0V to VDD
+            const maxV = VDD;
+            const mapX = (idx) => (idx / (history.length - 1)) * w;
+            const mapY = (v) => h - (v / maxV) * h;
+
+            // Scale labels
+            ctxVds.fillStyle = 'rgba(255,255,255,0.3)';
+            ctxVds.font = '11px monospace';
+            ctxVds.fillText(`${VDD.toFixed(0)}V`, w - 35, 14);
+            ctxVds.fillText('0V', w - 25, h - 4);
+
+            // VDD reference line
+            ctxVds.strokeStyle = 'rgba(255, 51, 102, 0.4)';
+            ctxVds.setLineDash([6, 4]);
+            ctxVds.beginPath();
+            ctxVds.moveTo(0, mapY(VDD)); ctxVds.lineTo(w, mapY(VDD));
+            ctxVds.stroke();
+            ctxVds.setLineDash([]);
+
+            // Q-point reference
+            ctxVds.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctxVds.setLineDash([3, 5]);
+            ctxVds.beginPath();
+            let yQ = mapY(Vds_quiescent);
+            ctxVds.moveTo(0, yQ); ctxVds.lineTo(w, yQ);
+            ctxVds.stroke();
+            ctxVds.setLineDash([]);
+            ctxVds.fillStyle = 'rgba(255,255,255,0.2)';
+            ctxVds.fillText('Q', 4, yQ - 4);
+
+            // Trace
+            ctxVds.beginPath();
+            ctxVds.strokeStyle = '#00ff66';
+            ctxVds.lineWidth = 2;
+            ctxVds.lineJoin = 'round';
+            for (let i = 0; i < history.length; i++) {
+                let x = mapX(i), y = mapY(Math.max(0, history[i].vds_raw));
+                if (i === 0) ctxVds.moveTo(x, y); else ctxVds.lineTo(x, y);
+            }
+            ctxVds.stroke();
+        }
+
+        function renderPowerScope() {
+            const dpr = window.devicePixelRatio || 1;
+            const w = powerCanvas.width / dpr;
+            const h = powerCanvas.height / dpr;
+            ctxPow.clearRect(0, 0, w, h);
+
+            // Grid
+            ctxPow.strokeStyle = '#1a1a1a';
+            ctxPow.lineWidth = 1;
+            ctxPow.beginPath();
+            for (let i = 1; i < 10; i++) {
+                let x = w * i / 10;
+                ctxPow.moveTo(x, 0); ctxPow.lineTo(x, h);
+            }
+            for (let i = 1; i < 6; i++) {
+                let y = h * i / 6;
+                ctxPow.moveTo(0, y); ctxPow.lineTo(w, y);
+            }
+            ctxPow.stroke();
+
+            if (history.length < 2) return;
+
+            // Fixed axis: 0W to 10W
+            let scale = 10;
+
+            const mapX = (idx) => (idx / (history.length - 1)) * w;
+            const mapY = (p) => h - (p / scale) * h;
+
+            // Scale labels
+            ctxPow.fillStyle = 'rgba(255,255,255,0.3)';
+            ctxPow.font = '11px monospace';
+            ctxPow.fillText('10W', w - 35, 14);
+            ctxPow.fillText('0W', w - 25, h - 4);
+
+            // Trace
+            ctxPow.beginPath();
+            ctxPow.strokeStyle = '#ffaa00';
+            ctxPow.lineWidth = 2;
+            ctxPow.lineJoin = 'round';
+            for (let i = 0; i < history.length; i++) {
+                let power = history[i].vds_raw * history[i].id;
+                let x = mapX(i), y = mapY(power);
+                if (i === 0) ctxPow.moveTo(x, y); else ctxPow.lineTo(x, y);
+            }
+            ctxPow.stroke();
+        }
+
+        // --- Main Loop ---
+        let frame_count = 0;
+
+        function animate() {
+            step_accumulator += sim_speed;
+            let steps = Math.floor(step_accumulator);
+            step_accumulator -= steps;
+
+            for (let i = 0; i < steps; i++) {
+                t += dt;
+
+                let ac_sig = get_ac_signal(t, mod_type);
+                let vgs_ac = V_AC_amp * ac_sig;
+                let Vgs = V_DC + vgs_ac;
+
+                let { Vds, Id } = solve_operating_point(Vgs, VDD, RD);
+
+                // AC component of output = Vds - Vds_quiescent
+                let vds_ac = Vds - Vds_quiescent;
+
+                let P_diss = Vds * Id;
+
+                if (!isFried) {
+                    if (Vds > VBR) triggerFry(`Avalanche Breakdown (Vds > ${VBR}V)`);
+                    else if (Vgs > 8) triggerFry(`Gate Oxide Breakdown (Vgs > 8V)`);
+                    else if (P_diss > PMAX) triggerFry(`Thermal Runaway (Power > ${PMAX}W)`);
+                }
+
+                // Efficiency
+                let P_dc = VDD * Id;
+                let P_out_rf = (vds_ac * vds_ac) / RD;
+
+                P_dc_inst_avg += (P_dc - P_dc_inst_avg) * (dt / 0.1);
+                P_rf_inst_avg += (P_out_rf - P_rf_inst_avg) * (dt / 0.1);
+
+                if (!isFried && P_dc > 0.001) {
+                    P_dc_acc += P_dc * dt;
+                    P_rf_acc += P_out_rf * dt;
+                }
+
+                history.push({ t, vgs_ac, vds_ac, vds_raw: Vds, vgs_total: Vgs, id: Id });
+                if (history.length > MAX_HIST) history.shift();
+            }
+
+            renderInputScope();
+            renderVdsScope();
+            renderPowerScope();
+
+            // Throttle UI text updates
+            if (frame_count % 5 === 0 && history.length > 0) {
+                let cur = history[history.length - 1];
+                document.getElementById('read-vgs').innerText = cur.vgs_total.toFixed(2) + ' V';
+                document.getElementById('read-vdd').innerText = VDD.toFixed(1) + ' V';
+                
+                let inst_pdiss = cur.vds_raw * cur.id;
+                document.getElementById('read-pout').innerText = inst_pdiss.toFixed(1) + ' W';
+
+                let inst_eff = P_dc_inst_avg > 0.1 ? (P_rf_inst_avg / P_dc_inst_avg) * 100 : 0;
+                document.getElementById('read-inst-eff').innerText = Math.min(100, Math.max(0, inst_eff)).toFixed(1) + ' %';
+
+                let avg_eff = P_dc_acc > 0.1 ? (P_rf_acc / P_dc_acc) * 100 : 0;
+                document.getElementById('read-avg-eff').innerText = Math.min(100, Math.max(0, avg_eff)).toFixed(1) + ' %';
+            }
+            frame_count++;
+
+            requestAnimationFrame(animate);
+        }
+
+        requestAnimationFrame(animate);
+    </script>
+</body>
+
+</html>

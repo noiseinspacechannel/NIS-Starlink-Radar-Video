@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starlink STAP Coverage</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050510; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #aaccff; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        #ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 300px;
+            background: rgba(10, 15, 30, 0.9);
+            padding: 15px;
+            border: 1px solid #4466aa;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            max-height: 95vh;
+            overflow-y: auto;
+        }
+
+        #btn-fullscreen {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 8px 15px;
+            background: rgba(10, 15, 30, 0.9);
+            border: 1px solid #4466aa;
+            border-radius: 6px;
+            color: #aaccff;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            transition: background 0.2s;
+        }
+        #btn-fullscreen:hover {
+            background: #223355;
+            color: white;
+        }
+
+        h1 { margin: 0 0 10px 0; font-size: 18px; color: #fff; border-bottom: 1px solid #4466aa; padding-bottom: 8px; }
+        h2 { font-size: 13px; color: #88aadd; margin-top: 12px; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px;}
+
+        .control-group { margin-bottom: 12px; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; }
+        
+        label { display: block; font-size: 11px; margin-bottom: 4px; color: #ccc; }
+        input[type="range"] { width: 100%; margin-bottom: 4px; cursor: pointer; }
+        
+        .val-display { float: right; color: #44ffaa; font-weight: bold; }
+
+        .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+        .metric-box { background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; text-align: center; border: 1px solid #334466; }
+        .metric-val { font-size: 20px; font-weight: bold; display: block; margin-top: 3px; }
+        .metric-label { font-size: 10px; color: #88aadd; }
+
+        .good { color: #44ff44; }
+        .bad { color: #ff4444; }
+        .warn { color: #ffff44; }
+
+        #legend { font-size: 10px; margin-top: 12px; color: #888; }
+        .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; }
+
+    </style>
+</head>
+<body>
+
+<button id="btn-fullscreen">Fullscreen</button>
+
+<div id="ui-layer">
+    <h1>Starlink STAP Coverage</h1>
+
+    <div class="control-group">
+        <h2>Constellation Parameters</h2>
+        <label>
+            Altitude: <span id="val-alt" class="val-display">550 km</span>
+            <input type="range" id="inp-alt" min="350" max="1000" step="10" value="550">
+        </label>
+        <label>
+            Satellites: <span id="val-count" class="val-display">24</span>
+            <input type="range" id="inp-count" min="1" max="10000" step="1" value="24">
+        </label>
+        <div style="font-size: 10px; color: #aaa; margin-top:4px;">
+            Planes: <span id="disp-planes">--</span> | Sats/Plane: <span id="disp-sats">1</span> (Distributed)
+        </div>
+    </div>
+
+    <div class="control-group">
+        <h2>Simulation Control</h2>
+        <label>
+            Time Speed: <span id="val-speed" class="val-display">20x</span>
+            <input type="range" id="inp-speed" min="1" max="200" step="1" value="20">
+        </label>
+        <button onclick="resetStats()" style="width:100%; padding:6px; background:#223355; border:1px solid #4466aa; color:white; cursor:pointer; font-size: 11px;">Reset Statistics</button>
+    </div>
+
+    <h2>Real-Time Performance</h2>
+    <div class="metric-grid">
+        <div class="metric-box">
+            <span class="metric-label">Mean Revisit</span>
+            <span id="met-revisit" class="metric-val warn">-- m</span>
+        </div>
+        <div class="metric-box">
+            <span class="metric-label">Pass Duration</span>
+            <span id="met-window" class="metric-val">0 s</span>
+        </div>
+    </div>
+
+    <div class="control-group" style="margin-top: 12px;">
+        <h2>STAP Swath Geometry</h2>
+        <label>
+            Range Swath (Min Look): <span id="val-minlook" class="val-display">20°</span>
+            <input type="range" id="inp-minlook" min="5" max="50" step="1" value="20">
+        </label>
+        <label>
+            Range Swath (Max Look): <span id="val-maxlook" class="val-display">55°</span>
+            <input type="range" id="inp-maxlook" min="10" max="70" step="1" value="55">
+        </label>
+        <label>
+            Azimuth Swath: <span id="val-azswath" class="val-display">250 km</span>
+            <input type="range" id="inp-azswath" min="10" max="1000" step="10" value="250">
+        </label>
+        <div style="font-size: 11px; line-height: 1.4; margin-top: 6px;">
+            Direction: <span style="color:white">Bi-directional</span> (L/R)<br>
+            Inclination: <span style="color:white">58°</span>
+        </div>
+    </div>
+
+    <div id="legend">
+        <div><span class="dot" style="background:#00ffff"></span> Satellite</div>
+        <div><span class="dot" style="background:rgba(255,255,0,0.2); border:1px solid yellow;"></span> Swath Footprint</div>
+        <div><span class="dot" style="background:#ff0000"></span> Target (Nevada, USA)</div>
+        <div><span class="dot" style="background:#44ff44"></span> Active Imaging</div>
+    </div>
+</div>
+
+<div id="canvas-container"></div>
+
+<!-- Three.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+    // --- Constants ---
+    const EARTH_RADIUS_KM = 6371;
+    const SCALE = 0.01; // 1 unit = 100km
+    const EARTH_R_UNITS = EARTH_RADIUS_KM * SCALE;
+    
+    // SAR Geometry Constraints (now dynamic via state)
+    let MIN_LOOK_ANGLE = 20 * (Math.PI/180);
+    let MAX_LOOK_ANGLE = 55 * (Math.PI/180);
+    let AZIMUTH_SWATH_KM = 250;
+    let HALF_AZIMUTH_UNITS = (AZIMUTH_SWATH_KM / 2) * SCALE;
+
+    // Target (Nevada Test Range approx)
+    const TARGET_LAT = 37.2;
+    const TARGET_LON = -115.8;
+
+    // --- State ---
+    const state = {
+        altitudeKm: 550,
+        numSats: 24,
+        speed: 20,
+        simTime: 0,
+        stats: {
+            totalTime: 0,
+            gaps: [],
+            currentGap: 0,
+            currentAccess: 0,
+            isCovered: false
+        }
+    };
+
+    // --- Scene Setup ---
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000510, 0.002);
+    
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.set(120, 40, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000510);
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.autoRotate = false; 
+    controls.enablePan = false;
+
+    // Lighting
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    sunLight.position.set(200, 50, 100);
+    scene.add(sunLight);
+    scene.add(new THREE.AmbientLight(0x404060));
+
+    // Stars
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = [];
+    for(let i=0; i<5000; i++) starPos.push((Math.random()-0.5)*2000, (Math.random()-0.5)*2000, (Math.random()-0.5)*2000);
+    starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xffffff, size:0.5})));
+
+    // Earth Group
+    const earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+
+    // Earth Mesh
+    const earthMat = new THREE.MeshPhongMaterial({ 
+        color: 0x112244, 
+        emissive: 0x000510,
+        specular: 0x050505,
+        shininess: 5,
+        transparent: false, 
+        opacity: 1.0 
+    });
+    const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R_UNITS, 64, 64), earthMat);
+    earthGroup.add(earth);
+
+    new THREE.TextureLoader().load('https://upload.wikimedia.org/wikipedia/commons/8/83/Equirectangular_projection_SW.jpg', (tex) => {
+        earth.material.map = tex;
+        earth.material.color.setHex(0xaaaaaa); 
+        earth.material.needsUpdate = true;
+    });
+
+    const atmo = new THREE.Mesh(
+        new THREE.SphereGeometry(EARTH_R_UNITS + 0.2, 64, 64),
+        new THREE.MeshBasicMaterial({ color: 0x4466aa, wireframe: true, transparent: true, opacity: 0.1 })
+    );
+    earthGroup.add(atmo);
+
+    // Target Marker
+    function latLonToVec(lat, lon, r) {
+        const phi = (90 - lat) * (Math.PI / 180);
+        const theta = (lon + 180) * (Math.PI / 180);
+        return new THREE.Vector3(
+            -(r * Math.sin(phi) * Math.cos(theta)),
+            r * Math.cos(phi),
+            r * Math.sin(phi) * Math.sin(theta)
+        );
+    }
+    const targetPosLocal = latLonToVec(TARGET_LAT, TARGET_LON, EARTH_R_UNITS);
+    const targetMarker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xff0000 })
+    );
+    targetMarker.position.copy(targetPosLocal);
+    earthGroup.add(targetMarker);
+    
+    // Target Ring
+    const targetRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.8, 1.0, 32),
+        new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide, transparent:true, opacity:0.6 })
+    );
+    targetRing.position.copy(targetPosLocal);
+    targetRing.lookAt(new THREE.Vector3(0,0,0));
+    earthGroup.add(targetRing);
+
+    // --- Geometry Generation (Butterfly Swath) ---
+    // We create a buffer geometry that represents the Left and Right look beams
+    // Geometry is generated for Altitude = 1.0, and then scaled by the Mesh
+    // Local coords: Z = Nadir (Down), Y = Velocity (Forward), X = Cross-Track (Right)
+    function createButterflyGeometry() {
+        const geom = new THREE.BufferGeometry();
+        const vertices = [];
+        const indices = [];
+
+        // We are drawing outlines of the "pyramid" frustum for left and right
+        // Origin (0,0,0) -> Satellite
+        
+        // Z distance is 1.0 (Unit Altitude)
+        const zBase = 1.0; 
+        
+        // Calculate offsets at the base (Earth surface) for unit altitude
+        const xMin = Math.tan(MIN_LOOK_ANGLE);
+        const xMax = Math.tan(MAX_LOOK_ANGLE);
+        
+        // Azimuth spread is fixed distance, but we are scaling the whole mesh by Altitude.
+        // So we need to normalize the azimuth width relative to altitude here?
+        // No, simpler: Make geometry for unit altitude, but we must update the geometry if the ratio of (Azimuth / Altitude) changes.
+        // Since Azimuth is fixed 250km and Altitude changes, we can't just scale a static geometry uniformly.
+        // We must regenerate vertices when altitude changes.
+        return geom; // Placeholder
+    }
+
+    function updateSwathGeometry(geometry, altitudeKm) {
+        const vertices = [];
+        const indices = [];
+        const altUnits = altitudeKm * SCALE;
+        
+        // Center (Sat)
+        // 0
+        vertices.push(0,0,0); 
+
+        // Footprint calculation
+        // Coordinate system: X=Right, Y=Forward(Vel), Z=Down(Nadir)
+        // But ThreeJS defaults: Y=Up. So let's align Local +Y to Velocity, Local +Z to Nadir?
+        // Simpler: Use a container object rotated correctly.
+        // Let's assume Local Space:
+        // Origin (0,0,0)
+        // Base plane at Z = altUnits
+        
+        const zBase = altUnits;
+        const halfAz = HALF_AZIMUTH_UNITS;
+        
+        const xMin = Math.tan(MIN_LOOK_ANGLE) * altUnits;
+        const xMax = Math.tan(MAX_LOOK_ANGLE) * altUnits;
+
+        // Right Wing (+X)
+        // Vertices at base
+        // 1: Near, Forward
+        vertices.push(xMin, halfAz, zBase);
+        // 2: Far, Forward
+        vertices.push(xMax, halfAz, zBase);
+        // 3: Far, Back
+        vertices.push(xMax, -halfAz, zBase);
+        // 4: Near, Back
+        vertices.push(xMin, -halfAz, zBase);
+
+        // Left Wing (-X)
+        // 5: Near, Forward
+        vertices.push(-xMin, halfAz, zBase);
+        // 6: Far, Forward
+        vertices.push(-xMax, halfAz, zBase);
+        // 7: Far, Back
+        vertices.push(-xMax, -halfAz, zBase);
+        // 8: Near, Back
+        vertices.push(-xMin, -halfAz, zBase);
+
+        // Indices (Triangles)
+        // Right Side faces
+        // Tip (0) -> 1 -> 2
+        indices.push(0,1,2);
+        indices.push(0,2,3);
+        indices.push(0,3,4);
+        indices.push(0,4,1);
+        // Base Cap
+        indices.push(1,4,3);
+        indices.push(1,3,2);
+
+        // Left Side faces
+        // Tip (0) -> 5 -> 6
+        indices.push(0,6,5);
+        indices.push(0,7,6);
+        indices.push(0,8,7);
+        indices.push(0,5,8);
+        // Base Cap
+        indices.push(5,6,7);
+        indices.push(5,7,8);
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+        
+        return geometry;
+    }
+
+    // --- Satellites ---
+    let satellites = []; 
+    const satGeo = new THREE.BoxGeometry(0.6, 0.2, 0.4);
+    const satMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+    
+    // Material for the beam/swath
+    const beamMat = new THREE.MeshBasicMaterial({ 
+        color: 0xffff00, 
+        transparent: true, 
+        opacity: 0.15, 
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        wireframe: false
+    });
+    
+    // Wireframe for the beam edges
+    const beamWireMat = new THREE.MeshBasicMaterial({
+        color: 0xffff00,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.3
+    });
+
+    // Global buffer geometry shared/cloned? No, shared is better for memory, 
+    // but scaling logic is handled inside vertices now. 
+    // We can use one geometry and update it if altitude changes for ALL sats.
+    const sharedSwathGeo = new THREE.BufferGeometry();
+
+    function createConstellation() {
+        // Clear existing
+        satellites.forEach(s => {
+            scene.remove(s.group); // Remove the group containing mesh and beam
+        });
+        satellites = [];
+
+        const n = state.numSats;
+        
+        document.getElementById('disp-planes').innerText = n; 
+        document.getElementById('disp-sats').innerText = "1";
+
+        const inclination = 58 * (Math.PI/180); 
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+        // Update Geometry once for current altitude
+        updateSwathGeometry(sharedSwathGeo, state.altitudeKm);
+
+        for(let i=0; i<n; i++) {
+            const group = new THREE.Group();
+            scene.add(group);
+
+            const mesh = new THREE.Mesh(satGeo, satMat.clone());
+            group.add(mesh); // Add sat body to group
+
+            const beam = new THREE.Mesh(sharedSwathGeo, beamMat);
+            group.add(beam); // Add beam to group
+            
+            // Add wireframe overlay for visibility
+            const beamWire = new THREE.Mesh(sharedSwathGeo, beamWireMat);
+            group.add(beamWire);
+
+            satellites.push({
+                group: group,
+                mesh: mesh,
+                beam: beam,
+                angle: (i / n) * Math.PI * 2, 
+                raan: (i * goldenAngle) % (Math.PI * 2),
+                inclination: inclination
+            });
+        }
+        resetStats();
+    }
+
+    // --- Stats Logic ---
+    function resetStats() {
+        state.stats = {
+            totalTime: 0,
+            gaps: [],
+            currentGap: 0,
+            currentAccess: 0,
+            isCovered: false
+        };
+        updateStatsUI();
+    }
+
+    function updateStatsUI() {
+        const s = state.stats;
+        
+        let avgGap = 0;
+        if(s.gaps.length > 0) {
+            const sum = s.gaps.reduce((a,b) => a+b, 0);
+            avgGap = sum / s.gaps.length;
+        } else if (!s.isCovered && s.currentGap > 0) {
+             avgGap = s.currentGap; 
+        }
+        
+        const avgGapMin = (avgGap / 60).toFixed(1);
+
+        const elRev = document.getElementById('met-revisit');
+        elRev.innerText = avgGapMin + " m";
+        elRev.className = "metric-val " + (avgGap < 600 ? "good" : (avgGap < 1800 ? "warn" : "bad"));
+
+        const elWin = document.getElementById('met-window');
+        elWin.innerText = s.isCovered ? s.currentAccess.toFixed(0) + " s" : "--";
+    }
+
+    // --- Simulation Loop ---
+    function update(dt) {
+        const earthRot = (2 * Math.PI / 86400) * dt;
+        earthGroup.rotation.y += earthRot;
+
+        state.stats.totalTime += dt;
+
+        const orbitR = EARTH_R_UNITS + (state.altitudeKm * SCALE);
+        const orbitSpeed = Math.sqrt(398600 / (EARTH_RADIUS_KM + state.altitudeKm)) * SCALE; 
+        const omega = orbitSpeed / orbitR;
+
+        // Target World Position
+        const targetWorld = targetPosLocal.clone().applyMatrix4(earthGroup.matrixWorld);
+        const horizonDist = Math.sqrt(Math.pow(orbitR, 2) - Math.pow(EARTH_R_UNITS, 2));
+
+        let activeCount = 0;
+
+        satellites.forEach(sat => {
+            sat.angle -= omega * dt; // Prograde
+
+            // 1. Calculate Position (Inertial Frame)
+            const cx = orbitR * Math.cos(sat.angle);
+            const cy = orbitR * Math.sin(sat.angle);
+            const pos = new THREE.Vector3(cx, 0, cy);
+            
+            // 2. Calculate Velocity Vector (Inertial Frame) before rotations
+            // Tangent to circle is (-sin, cos)
+            const vx = -Math.sin(sat.angle);
+            const vy = Math.cos(sat.angle);
+            const vel = new THREE.Vector3(vx, 0, vy).normalize();
+
+            // 3. Apply Orbital Rotations to both Position and Velocity
+            const rotInc = new THREE.Matrix4().makeRotationX(sat.inclination);
+            const rotRaan = new THREE.Matrix4().makeRotationY(sat.raan);
+            const rotMat = new THREE.Matrix4().multiply(rotRaan).multiply(rotInc);
+
+            pos.applyMatrix4(rotMat);
+            vel.applyMatrix4(rotMat);
+
+            // Update Group Position
+            sat.group.position.copy(pos);
+
+            // Align Group Orientation
+            // Local Z should point to Earth Center (Nadir)
+            // Local Y should point along Velocity
+            // Local X is Cross-track
+            
+            // nadir vector (Down) relative to sat is -Pos
+            // But we defined geometry with Z = +Nadir (Down) to match "LookAt" logic usually
+            // LookAt makes +Z point to target.
+            // So if we LookAt(0,0,0), +Z points to Earth Center. Correct.
+            sat.group.lookAt(0,0,0);
+            
+            // Now we need to roll the satellite so +Y aligns with Velocity projected on tangent plane
+            // When we do lookAt(0,0,0), the object's Z is fixed. The Up vector determines X/Y.
+            // Default Up is (0,1,0). 
+            // We want the object's local +Y to align roughly with velocity.
+            // We can explicitly set the rotation matrix basis vectors.
+            
+            const zAxis = pos.clone().normalize().negate(); // Points TO earth center (Nadir)
+            const yAxis = vel.clone().normalize(); // Velocity
+            const xAxis = new THREE.Vector3().crossVectors(yAxis, zAxis).normalize(); // Cross Track
+            
+            // Re-orthogonalize Y just in case (Orbit is circular so V is perp to R, so it should be fine)
+            // Construct Matrix: [X, Y, Z, Pos]
+            const m = new THREE.Matrix4();
+            m.makeBasis(xAxis, yAxis, zAxis);
+            m.setPosition(pos);
+            sat.group.matrix.copy(m);
+            sat.group.matrixAutoUpdate = false; // Manually set matrix
+            
+            // --- Coverage Check ---
+            // Transform Target World Position into Satellite Local Space
+            const targetLocal = targetWorld.clone().applyMatrix4(sat.group.matrix.clone().invert());
+            
+            // Now Target is in Local Space:
+            // Z = Distance Down (approx Altitude)
+            // Y = Along-Track
+            // X = Cross-Track
+            
+            // 1. Check Along-Track (Azimuth)
+            // Must be within +/- Half Azimuth Swath
+            if (Math.abs(targetLocal.y) <= HALF_AZIMUTH_UNITS) {
+                
+                // 2. Check Cross-Track Angle (Look Angle)
+                // Calculate angle in the X-Z plane
+                // vector is (x, z). Angle from Z axis.
+                // atan2(x, z)
+                const angleOffNadir = Math.atan2(Math.abs(targetLocal.x), targetLocal.z);
+                
+                if (angleOffNadir >= MIN_LOOK_ANGLE && angleOffNadir <= MAX_LOOK_ANGLE) {
+                    
+                    // 3. Horizon Check
+                    // Distance from Sat to Target in World
+                    const dist = sat.group.position.distanceTo(targetWorld);
+                    if (dist < horizonDist) {
+                        activeCount++;
+                    }
+                }
+            }
+            
+            // Visual Feedback
+            if(activeCount > 0 && Math.abs(targetLocal.y) <= HALF_AZIMUTH_UNITS && Math.atan2(Math.abs(targetLocal.x), targetLocal.z) >= MIN_LOOK_ANGLE) {
+               // Only highlight the specific sat that is covering
+               // But loop runs for all.
+            }
+        });
+        
+        // Coloring based on active status
+        satellites.forEach(s => {
+             // Re-run simple check or store state?
+             // Lets just check if *this* sat is contributing
+             const targetLocal = targetWorld.clone().applyMatrix4(s.group.matrix.clone().invert());
+             const azCheck = Math.abs(targetLocal.y) <= HALF_AZIMUTH_UNITS;
+             const elAngle = Math.atan2(Math.abs(targetLocal.x), targetLocal.z);
+             const elCheck = elAngle >= MIN_LOOK_ANGLE && elAngle <= MAX_LOOK_ANGLE;
+             const dist = s.group.position.distanceTo(targetWorld);
+             
+             if (azCheck && elCheck && dist < horizonDist) {
+                 s.mesh.material.color.setHex(0x44ff44); // Active
+                 s.beam.material.opacity = 0.5;
+             } else {
+                 s.mesh.material.color.setHex(0x00ffff); // Idle
+                 s.beam.material.opacity = 0.15;
+             }
+        });
+
+        // Metrics Logic
+        const isCoveredNow = activeCount > 0;
+        
+        if (isCoveredNow) {
+            state.stats.currentAccess += dt;
+            if (!state.stats.isCovered) {
+                if (state.stats.currentGap > 0) {
+                    state.stats.gaps.push(state.stats.currentGap);
+                }
+                state.stats.currentGap = 0;
+            }
+            state.stats.isCovered = true;
+        } else {
+            state.stats.currentGap += dt;
+            if (state.stats.isCovered) {
+                state.stats.currentAccess = 0;
+            }
+            state.stats.isCovered = false;
+        }
+        
+        if(Math.floor(state.stats.totalTime) % 2 === 0) updateStatsUI();
+    }
+
+    // --- Animation Loop ---
+    let lastTime = performance.now();
+    function animate() {
+        requestAnimationFrame(animate);
+        const now = performance.now();
+        const dt = (now - lastTime) / 1000;
+        lastTime = now;
+
+        update(dt * state.speed);
+        
+        renderer.render(scene, camera);
+    }
+
+    // --- Inputs ---
+    const inpAlt = document.getElementById('inp-alt');
+    const inpCount = document.getElementById('inp-count');
+    const inpSpeed = document.getElementById('inp-speed');
+    const inpMinLook = document.getElementById('inp-minlook');
+    const inpMaxLook = document.getElementById('inp-maxlook');
+    const inpAzSwath = document.getElementById('inp-azswath');
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+
+    btnFullscreen.addEventListener('click', () => {
+        document.documentElement.requestFullscreen();
+        btnFullscreen.style.display = 'none';
+    });
+    
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+            btnFullscreen.style.display = 'block';
+        }
+    });
+
+    inpAlt.addEventListener('input', (e) => {
+        state.altitudeKm = parseInt(e.target.value);
+        document.getElementById('val-alt').innerText = state.altitudeKm + " km";
+        updateSwathGeometry(sharedSwathGeo, state.altitudeKm);
+        resetStats();
+    });
+
+    inpCount.addEventListener('input', (e) => {
+        state.numSats = parseInt(e.target.value);
+        document.getElementById('val-count').innerText = state.numSats;
+        createConstellation(); 
+    });
+
+    inpSpeed.addEventListener('input', (e) => {
+        state.speed = parseInt(e.target.value);
+        document.getElementById('val-speed').innerText = state.speed + "x";
+    });
+
+    inpMinLook.addEventListener('input', (e) => {
+        let val = parseInt(e.target.value);
+        if (val >= parseInt(inpMaxLook.value)) { val = parseInt(inpMaxLook.value) - 1; e.target.value = val; }
+        MIN_LOOK_ANGLE = val * (Math.PI/180);
+        document.getElementById('val-minlook').innerText = val + "°";
+        updateSwathGeometry(sharedSwathGeo, state.altitudeKm);
+        resetStats();
+    });
+
+    inpMaxLook.addEventListener('input', (e) => {
+        let val = parseInt(e.target.value);
+        if (val <= parseInt(inpMinLook.value)) { val = parseInt(inpMinLook.value) + 1; e.target.value = val; }
+        MAX_LOOK_ANGLE = val * (Math.PI/180);
+        document.getElementById('val-maxlook').innerText = val + "°";
+        updateSwathGeometry(sharedSwathGeo, state.altitudeKm);
+        resetStats();
+    });
+
+    inpAzSwath.addEventListener('input', (e) => {
+        AZIMUTH_SWATH_KM = parseInt(e.target.value);
+        HALF_AZIMUTH_UNITS = (AZIMUTH_SWATH_KM / 2) * SCALE;
+        document.getElementById('val-azswath').innerText = AZIMUTH_SWATH_KM + " km";
+        updateSwathGeometry(sharedSwathGeo, state.altitudeKm);
+        resetStats();
+    });
+
+    // Init
+    createConstellation();
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+</script>
+</body>
+</html>

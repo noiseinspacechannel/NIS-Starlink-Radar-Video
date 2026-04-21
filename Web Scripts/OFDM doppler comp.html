@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OFDM Doppler Shift & ICI — SAR Geometry</title>
+    <style>
+        :root {
+            --bg-color: #171717;
+            --panel-color: #232323;
+            --text-color: #e0e0e0;
+            --accent-color: #00f0ff;
+            --secondary-accent: #ffff00;
+            --return-color: #ff4444;
+            --bistatic-color: #a855f7;
+            --border-color: #333;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ───────── Controls Panel ───────── */
+        #controls {
+            background-color: var(--panel-color);
+            padding: 14px 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            border-bottom: 1px solid var(--border-color);
+            z-index: 10;
+            flex-shrink: 0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .control-group h3 {
+            margin: 0 0 6px 0;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #666;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+        }
+
+        .param-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .param-row label {
+            font-size: 0.68rem;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            min-width: 100px;
+            flex-shrink: 0;
+        }
+
+        .param-row input[type="range"] {
+            flex: 1;
+            min-width: 50px;
+            cursor: pointer;
+            accent-color: var(--accent-color);
+            background: #444;
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .param-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+        }
+
+        .param-row input[type="number"], .param-row select {
+            width: 76px;
+            background: #1a1a1a;
+            color: var(--accent-color);
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 3px 6px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.78rem;
+            text-align: right;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .param-row select {
+            width: flex;
+            text-align: left;
+            flex: 1;
+        }
+
+        .param-row input[type="number"]:focus, .param-row select:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 6px rgba(0, 240, 255, 0.25);
+        }
+
+        .param-unit {
+            font-size: 0.65rem;
+            color: #666;
+            min-width: 24px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.62rem;
+            color: #888;
+            text-transform: uppercase;
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px solid #2a2a2a;
+        }
+
+        .info-row .value-display {
+            color: var(--accent-color);
+            font-weight: bold;
+            font-family: monospace;
+            font-size: 0.72rem;
+        }
+
+        /* ───────── Action Button ───────── */
+        #fullscreen-btn {
+            background: none;
+            border: 1px solid #444;
+            color: var(--accent-color);
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: all 0.2s;
+            margin: 8px 20px 0 20px;
+            align-self: flex-start;
+            flex-shrink: 0;
+        }
+
+        #fullscreen-btn:hover {
+            background: rgba(0, 240, 255, 0.1);
+            border-color: var(--accent-color);
+        }
+
+        #explain-panel {
+            display: none;
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 6px;
+            margin: 6px 20px;
+            padding: 16px 20px;
+            font-size: 0.76rem;
+            line-height: 1.55;
+            color: #bbb;
+            overflow-y: auto;
+            max-height: 300px;
+            flex-shrink: 0;
+        }
+
+        #explain-panel.open { display: block; }
+
+        #explain-panel h4 {
+            color: var(--accent-color);
+            margin: 12px 0 4px 0;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        #explain-panel h4:first-child { margin-top: 0; }
+
+        #explain-panel code {
+            background: #2a2a2a;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: 'Consolas', monospace;
+            color: #e0e0e0;
+            font-size: 0.74rem;
+        }
+
+        #explain-panel ul {
+            margin: 4px 0 8px 0;
+            padding-left: 18px;
+        }
+
+        #explain-panel li { margin-bottom: 3px; }
+
+        /* ───────── Visualization Grid ───────── */
+        #display-area {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-auto-rows: minmax(140px, 1fr);
+            gap: 10px;
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        .canvas-container {
+            position: relative;
+            background: #111;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .canvas-container canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .plot-title {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            color: #eee;
+            border-left: 3px solid var(--accent-color);
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .plot-info {
+            position: absolute;
+            top: 32px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-family: monospace;
+            color: #aaa;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .tx-title { border-color: var(--accent-color); }
+        .gnd-title { border-color: var(--secondary-accent); }
+        .ret-title { border-color: var(--return-color); }
+        .bi-title { border-color: var(--bistatic-color); }
+
+        /* Center the Tx plot in row 1 */
+        .row-tx { grid-column: 2; }
+    </style>
+</head>
+
+<body>
+
+    <div id="controls">
+        <!-- Column 1: Waveform Parameters -->
+        <div class="control-group">
+            <h3>Waveform & Comp</h3>
+            <div class="param-row">
+                <label>Mode</label>
+                <select id="comp-mode">
+                    <option value="rx_only">Rx LO Tracking (Center)</option>
+                    <option value="tx_pre">Tx Pre-Comp (Center)</option>
+                    <option value="none">No Compensation</option>
+                </select>
+            </div>
+            <div class="param-row">
+                <label>Carrier Freq</label>
+                <input type="range" id="sl-fc" min="1" max="50" value="10" step="0.5">
+                <input type="number" id="in-fc" min="1" max="50" value="10" step="0.5">
+                <span class="param-unit">GHz</span>
+            </div>
+            <div class="param-row">
+                <label>Subcarrier BW</label>
+                <input type="range" id="sl-scbw" min="1" max="250" value="75" step="1">
+                <input type="number" id="in-scbw" min="1" max="250" value="75" step="1">
+                <span class="param-unit">kHz</span>
+            </div>
+            <div class="param-row">
+                <label>Total BW</label>
+                <input type="range" id="sl-totbw" min="10" max="1000" value="100" step="10">
+                <input type="number" id="in-totbw" min="10" max="1000" value="100" step="10">
+                <span class="param-unit">MHz</span>
+            </div>
+            <div class="info-row">
+                <span>Num Subcarriers: <span id="info-nsc" class="value-display"></span></span>
+                <span>Symbol: <span id="info-tsym" class="value-display"></span></span>
+            </div>
+        </div>
+
+        <!-- Column 2: SAR Geometry -->
+        <div class="control-group">
+            <h3>SAR Geometry</h3>
+            <div class="param-row">
+                <label>Altitude</label>
+                <input type="range" id="sl-alt" min="100" max="2000" value="550" step="10">
+                <input type="number" id="in-alt" min="100" max="2000" value="550" step="10">
+                <span class="param-unit">km</span>
+            </div>
+            <div class="param-row">
+                <label>Grazing Angle</label>
+                <input type="range" id="sl-graze" min="5" max="85" value="40" step="0.5">
+                <input type="number" id="in-graze" min="5" max="85" value="40" step="0.5">
+                <span class="param-unit">°</span>
+            </div>
+            <div class="param-row">
+                <label>Squint Angle</label>
+                <input type="range" id="sl-squint" min="-60" max="60" value="10" step="0.5">
+                <input type="number" id="in-squint" min="-60" max="60" value="10" step="0.5">
+                <span class="param-unit">°</span>
+            </div>
+            <div class="param-row">
+                <label>Az Swath</label>
+                <input type="range" id="sl-azswath" min="0.1" max="20" value="6" step="0.1">
+                <input type="number" id="in-azswath" min="0.1" max="20" value="6" step="0.1">
+                <span class="param-unit">°</span>
+            </div>
+        </div>
+
+        <!-- Column 3: Platform (Tx) -->
+        <div class="control-group">
+            <h3>Tx Platform</h3>
+            <div class="param-row">
+                <label>Tx Velocity</label>
+                <input type="range" id="sl-vel" min="100" max="10000" value="7500" step="50">
+                <input type="number" id="in-vel" min="100" max="10000" value="7500" step="50">
+                <span class="param-unit">m/s</span>
+            </div>
+            <div class="info-row">
+                <span>Slant Range: <span id="info-slant" class="value-display"></span></span>
+            </div>
+            <div class="info-row">
+                <span>Doppler (2-Way): <span id="info-fd-center" class="value-display"></span></span>
+            </div>
+            <div class="info-row">
+                <span>Edge Spread: <span id="info-fd-spread" class="value-display"></span></span>
+            </div>
+            <div class="info-row">
+                <span>Δf<sub>D</sub>/Δf: <span id="info-norm-spread" class="value-display"></span></span>
+            </div>
+            <div class="info-row">
+                <span>Subcarrier Spread: <span id="info-sc-spread" class="value-display"></span></span>
+            </div>
+        </div>
+
+        <!-- Column 4: Bistatic Rx -->
+        <div class="control-group">
+            <h3>Bistatic Rx Platform</h3>
+            <div class="param-row" style="margin-bottom: 2px;">
+                <label style="min-width: 60px;">Enable</label>
+                <input type="checkbox" id="cb-bi" style="accent-color: var(--bistatic-color);">
+            </div>
+            <div id="bi-controls" style="opacity: 0.4; pointer-events: none; transition: opacity 0.2s;">
+                <div class="param-row">
+                    <label>Rx Altitude</label>
+                    <input type="range" id="sl-rxalt" min="100" max="2000" value="600" step="10">
+                    <input type="number" id="in-rxalt" min="100" max="2000" value="600" step="10">
+                    <span class="param-unit">km</span>
+                </div>
+                <div class="param-row">
+                    <label>Rx Graze</label>
+                    <input type="range" id="sl-rxgraze" min="5" max="85" value="45" step="0.5">
+                    <input type="number" id="in-rxgraze" min="5" max="85" value="45" step="0.5">
+                    <span class="param-unit">°</span>
+                </div>
+                <div class="param-row">
+                    <label>Rx Squint</label>
+                    <input type="range" id="sl-rxsquint" min="-60" max="60" value="10" step="0.5">
+                    <input type="number" id="in-rxsquint" min="-60" max="60" value="10" step="0.5">
+                    <span class="param-unit">°</span>
+                </div>
+                <div class="param-row">
+                    <label>Rx Velocity</label>
+                    <input type="range" id="sl-rxvel" min="100" max="10000" value="7600" step="50">
+                    <input type="number" id="in-rxvel" min="100" max="10000" value="7600" step="50">
+                    <span class="param-unit">m/s</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button id="fullscreen-btn" onclick="document.documentElement.requestFullscreen(); this.style.display='none';">⛶ Go Fullscreen</button>
+
+    <div id="explain-panel" style="display: none !important;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <h4>What Is ICI Leakage?</h4>
+                <p>Each OFDM subcarrier is a <code>sinc(f)</code> function in frequency. Normally, the receiver's FFT bins
+                    are positioned exactly at each sinc peak — where every neighboring sinc has a null. This is
+                    <strong>orthogonality</strong>.</p>
+                <ul>
+                    <li>Doppler shifts ALL subcarriers uniformly. They do not move relative to each other.</li>
+                    <li>Because the receiver's FFT grid is fixed, after a shift, every bin samples its subcarrier
+                        <em>off-peak</em> and picks up <em>non-zero</em> leakage from neighbors.</li>
+                    <li>The <strong>colored dots</strong> show the power recovered from the <em>intended</em>
+                        subcarrier. The <strong>white dots</strong> show total power in that bin (including leakage).</li>
+                </ul>
+
+                <h4>How Does SAR Geometry Create Residual ICI?</h4>
+                <p>Even if you track the beam center's Doppler perfectly, the compensation fails at the beam edges.
+                    Why? Because the <strong>squint angle</strong> varies across the azimuth swath. A target at the
+                    leading edge of the beam has a higher closing velocity than a target at the beam center. This creates
+                    a residual Doppler spread across the beam. Wider swaths &rarr; more spread &rarr; more ICI.</p>
+            </div>
+            <div>
+                <h4>Compensation Strategies</h4>
+                <ul>
+                    <li><strong>Rx LO Tracking:</strong> The receiver shifts its mixing frequency to match the beam center's Doppler shift.
+                        Tx stays at perfect baseband. Beam edges see residual shift.</li>
+                    <li><strong>Tx Pre-compensation:</strong> The transmitter pre-shifts its waveform in the <em>opposite</em> direction
+                        so that after propagation, the beam center lands perfectly on the Rx baseband grid. (See Tx plot move!)</li>
+                    <li><strong>Wider Subcarriers:</strong> The simplest ICI mitigation. If you make subcarrier BW (Δf) much larger than
+                        the edge Doppler spread, the residual shift becomes a tiny fraction of Δf, restoring orthogonality.</li>
+                </ul>
+
+                <h4>Why is it worse at higher Carrier Frequencies?</h4>
+                <p>Doppler shift is proportional to the carrier frequency: <code>f_d = (v / c) * f_c</code>. As you move from Ku-band (12 GHz)
+                to Ka-band (30 GHz) or V-band (50 GHz), the absolute Doppler spread across the beam increases linearly. If you keep the
+                subcarrier bandwidth (Δf) constant, the spread becomes a much larger percentage of Δf, leading to severe ICI. You must 
+                use wider subcarriers at higher carrier frequencies to compensate!</p>
+
+                <h4>What about Total Bandwidth?</h4>
+                <p>Doppler shift scales with the <em>exact</em> frequency of each subcarrier. A subcarrier at <code>f_c - BW/2</code> will have a slightly 
+                smaller absolute Doppler shift than a subcarrier at <code>f_c + BW/2</code>. When the <strong>Total BW</strong> is very wide 
+                (e.g., several GHz), the Doppler shift varies significantly across the OFDM symbol itself. Even if you center-track the middle 
+                subcarrier perfectly, the subcarriers at the far edges of the band will suffer from their own residual shift, causing 
+                <strong>Subcarrier Spread ICI</strong>. This degradation is quantified as "Edge Loss" under the Subcarrier Spread metric, showing the worst-case SNR penalty at the extreme edges of the frequency band and the <strong>outer edges of the azimuth swath</strong> (where the squint angle, and thus Doppler scaling, is most severe).</p>
+
+                <h4>What About HRWS Mode?</h4>
+                <p>HRWS (High Resolution Wide Swath) typically uses multiple parallel receive channels distributed in <strong>azimuth</strong>,
+                    not elevation. Because the phase centers are separate along the velocity vector, each channel observes a slightly different
+                    squint angle to the same target at any given instant. While HRWS reconstructs a wider unambiguous Doppler spectrum,
+                    the instantaneous OFDM ICI problem remains similar for each channel individually, driven by the broad transmit beam.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="display-area">
+        <!-- Row 1: Transmitted (centered) -->
+        <div></div>
+        <div class="canvas-container row-tx">
+            <div class="plot-title tx-title">Transmitted OFDM</div>
+            <div class="plot-info"></div>
+            <canvas id="c-tx"></canvas>
+        </div>
+        <div></div>
+
+        <!-- Row 2: 1-Way Rx (Comms downlink) -->
+        <div class="canvas-container">
+            <div class="plot-title gnd-title">1-Way Rx — Left Az Edge</div>
+            <div class="plot-info"></div>
+            <canvas id="c-gL"></canvas>
+        </div>
+        <div class="canvas-container">
+            <div class="plot-title gnd-title">1-Way Rx — Beam Center</div>
+            <div class="plot-info"></div>
+            <canvas id="c-gC"></canvas>
+        </div>
+        <div class="canvas-container">
+            <div class="plot-title gnd-title">1-Way Rx — Right Az Edge</div>
+            <div class="plot-info"></div>
+            <canvas id="c-gR"></canvas>
+        </div>
+
+        <!-- Row 3: 2-Way Rx (Monostatic SAR) -->
+        <div class="canvas-container">
+            <div class="plot-title ret-title">2-Way Rx (Monostatic) — Left Az Edge</div>
+            <div class="plot-info"></div>
+            <canvas id="c-rL"></canvas>
+        </div>
+        <div class="canvas-container">
+            <div class="plot-title ret-title">2-Way Rx (Monostatic) — Beam Center</div>
+            <div class="plot-info"></div>
+            <canvas id="c-rC"></canvas>
+        </div>
+        <div class="canvas-container">
+            <div class="plot-title ret-title">2-Way Rx (Monostatic) — Right Az Edge</div>
+            <div class="plot-info"></div>
+            <canvas id="c-rR"></canvas>
+        </div>
+
+        <!-- Row 4: Bistatic Rx -->
+        <div class="canvas-container row-bi">
+            <div class="plot-title bi-title">Bistatic Rx — Left Az Edge</div>
+            <div class="plot-info"></div>
+            <canvas id="c-bL"></canvas>
+        </div>
+        <div class="canvas-container row-bi">
+            <div class="plot-title bi-title">Bistatic Rx — Beam Center</div>
+            <div class="plot-info"></div>
+            <canvas id="c-bC"></canvas>
+        </div>
+        <div class="canvas-container row-bi">
+            <div class="plot-title bi-title">Bistatic Rx — Right Az Edge</div>
+            <div class="plot-info"></div>
+            <canvas id="c-bR"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const c_light = 299792458;
+        const DEG = Math.PI / 180;
+
+        const colors = {
+            'c-tx': '#00f0ff',
+            'c-gL': '#ffff00', 'c-gC': '#ffff00', 'c-gR': '#ffff00',
+            'c-rL': '#ff4444', 'c-rC': '#ff4444', 'c-rR': '#ff4444',
+            'c-bL': '#a855f7', 'c-bC': '#a855f7', 'c-bR': '#a855f7'
+        };
+
+        function hexToRgba(hex, alpha) {
+            let r = parseInt(hex.slice(1, 3), 16);
+            let g = parseInt(hex.slice(3, 5), 16);
+            let b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        /* ─── UI Sync and Toggles ─── */
+        const paramIds = ['comp-mode', 'fc', 'scbw', 'totbw', 'alt', 'graze', 'squint', 'azswath', 'vel', 'rxalt', 'rxgraze', 'rxsquint', 'rxvel'];
+
+        paramIds.forEach(id => {
+            if (id === 'comp-mode') return; // handled separately
+            const slider = document.getElementById('sl-' + id);
+            const input = document.getElementById('in-' + id);
+            if (!slider || !input) return;
+
+            slider.addEventListener('input', () => {
+                input.value = slider.value;
+                requestAnimationFrame(updateSimulation);
+            });
+
+            input.addEventListener('input', () => {
+                let v = parseFloat(input.value);
+                const mn = parseFloat(slider.min);
+                const mx = parseFloat(slider.max);
+                if (!isNaN(v)) {
+                    v = Math.max(mn, Math.min(mx, v));
+                    slider.value = v;
+                }
+                requestAnimationFrame(updateSimulation);
+            });
+
+            input.addEventListener('blur', () => {
+                let v = parseFloat(input.value);
+                const mn = parseFloat(slider.min);
+                const mx = parseFloat(slider.max);
+                if (isNaN(v)) v = parseFloat(slider.value);
+                v = Math.max(mn, Math.min(mx, v));
+                input.value = v;
+                slider.value = v;
+                requestAnimationFrame(updateSimulation);
+            });
+        });
+
+        document.getElementById('comp-mode').addEventListener('change', () => requestAnimationFrame(updateSimulation));
+
+        const cbBi = document.getElementById('cb-bi');
+        const biControls = document.getElementById('bi-controls');
+        cbBi.addEventListener('change', () => {
+            const active = cbBi.checked;
+            biControls.style.opacity = active ? '1' : '0.4';
+            biControls.style.pointerEvents = active ? 'auto' : 'none';
+            document.querySelectorAll('.row-bi').forEach(el => el.style.display = active ? 'flex' : 'none');
+            requestAnimationFrame(updateSimulation);
+        });
+
+        /* ─── Physics Simulation ─── */
+        function updateSimulation() {
+            // Read UI
+            const compMode = document.getElementById('comp-mode').value;
+            const biActive = document.getElementById('cb-bi').checked;
+
+            const fc   = parseFloat(document.getElementById('sl-fc').value) * 1e9;
+            const scbw = parseFloat(document.getElementById('sl-scbw').value) * 1e3;
+            const totbw = parseFloat(document.getElementById('sl-totbw').value) * 1e6;
+            
+            const alt   = parseFloat(document.getElementById('sl-alt').value) * 1e3;
+            const graze = parseFloat(document.getElementById('sl-graze').value) * DEG;
+            const squint = parseFloat(document.getElementById('sl-squint').value) * DEG;
+            const azSwath = parseFloat(document.getElementById('sl-azswath').value) * DEG;
+            const vel   = parseFloat(document.getElementById('sl-vel').value);
+
+            const rxAlt   = parseFloat(document.getElementById('sl-rxalt').value) * 1e3;
+            const rxGraze = parseFloat(document.getElementById('sl-rxgraze').value) * DEG;
+            const rxSquint = parseFloat(document.getElementById('sl-rxsquint').value) * DEG;
+            const rxVel   = parseFloat(document.getElementById('sl-rxvel').value);
+
+            const lambda = c_light / fc;
+            const Tsym = 1 / scbw;
+            const slantRange = alt / Math.sin(graze);
+
+            // Calculate Doppler Shifts
+            //   f_D = (v / lambda) * sin(squint) * sin(graze) 
+            // Note: sign convention -> closing velocity is positive 
+            const calcDoppler = (v, sq, gr) => (v / lambda) * Math.sin(sq) * Math.sin(gr);
+
+            // Shared swath angles (assuming targets are illuminated by Tx beam)
+            const sqCenter = squint;
+            const sqLeft   = squint - azSwath / 2;
+            const sqRight  = squint + azSwath / 2;
+
+            // Transmit (1-way) Doppler
+            const fd_tx_C = calcDoppler(vel, sqCenter, graze);
+            const fd_tx_L = calcDoppler(vel, sqLeft, graze);
+            const fd_tx_R = calcDoppler(vel, sqRight, graze);
+
+            // Monostatic (2-way) is double
+            const fd_mono_C = 2 * fd_tx_C;
+            const fd_mono_L = 2 * fd_tx_L;
+            const fd_mono_R = 2 * fd_tx_R;
+
+            // Bistatic Receive (1-way scattered Doppler)
+            // Note: Rx squint to the *same* physical targets requires projecting the geometry.
+            // For simplicity in this widget, we treat rxSquint as the central pointing, 
+            // and assume the angular spread to the same targets correlates linearly.
+            const fd_rx_C = calcDoppler(rxVel, rxSquint, rxGraze);
+            const fd_rx_L = calcDoppler(rxVel, rxSquint - azSwath/2, rxGraze);
+            const fd_rx_R = calcDoppler(rxVel, rxSquint + azSwath/2, rxGraze);
+
+            const fd_bi_C = fd_tx_C + fd_rx_C;
+            const fd_bi_L = fd_tx_L + fd_rx_L;
+            const fd_bi_R = fd_tx_R + fd_rx_R;
+
+            // Determine Compensation Logic
+            let txComp = 0;
+            let rxComp1 = 0;
+            let rxCompMono = 0;
+            let rxCompBi = 0;
+
+            if (compMode === 'rx_only') {
+                txComp = 0; // Tx transmits at baseband
+                rxComp1 = fd_tx_C;       // Comms Rx shifts LO
+                rxCompMono = fd_mono_C;  // SAR Rx shifts LO for round-trip
+                rxCompBi = fd_bi_C;      // Bi Rx shifts LO for combined
+            } else if (compMode === 'tx_pre') {
+                // Tx pre-shifts waveform in OPPOSITE direction of center expected Doppler
+                // Note: Tx pre-comp typically targets the Monostatic radar return, or Comm link?
+                // Let's assume it targets a perfect Comms link (1-way) for simplicity across all.
+                txComp = -fd_tx_C; 
+                rxComp1 = 0;
+                rxCompMono = 0; // Rx does nothing, relies on Tx pre-comp (only compensates 1-way though!)
+                rxCompBi = 0;
+            } else {
+                // none
+            }
+
+            // Final Residual Shifts at the FFT bin
+            // Shift = Pre_comp + Doppler - Rx_LO
+            const shifts = {
+                'c-tx': txComp,
+                
+                'c-gL': txComp + fd_tx_L - rxComp1,
+                'c-gC': txComp + fd_tx_C - rxComp1,
+                'c-gR': txComp + fd_tx_R - rxComp1,
+
+                'c-rL': txComp + fd_mono_L - rxCompMono,
+                'c-rC': txComp + fd_mono_C - rxCompMono,
+                'c-rR': txComp + fd_mono_R - rxCompMono,
+
+                'c-bL': (biActive) ? txComp + fd_bi_L - rxCompBi : 0,
+                'c-bC': (biActive) ? txComp + fd_bi_C - rxCompBi : 0,
+                'c-bR': (biActive) ? txComp + fd_bi_R - rxCompBi : 0
+            };
+
+            // Update info readouts
+            document.getElementById('info-tsym').innerText = (Tsym * 1e6).toFixed(1) + ' µs';
+            document.getElementById('info-slant').innerText = (slantRange / 1e3).toFixed(1) + ' km';
+            document.getElementById('info-fd-center').innerText = fmtFreq(fd_mono_C);
+            
+            const nsc = Math.floor(totbw / scbw);
+            document.getElementById('info-nsc').innerText = nsc.toLocaleString();
+
+            const edgeSpread = fd_mono_R - fd_mono_L;
+            document.getElementById('info-fd-spread').innerText = fmtFreq(edgeSpread);
+
+            const normSpread = Math.abs(edgeSpread / scbw);
+            const nsEl = document.getElementById('info-norm-spread');
+            nsEl.innerText = normSpread.toFixed(3);
+            nsEl.style.color = normSpread > 0.3 ? '#f87171' : (normSpread > 0.1 ? '#facc15' : '#4ade80');
+            
+            // Subcarrier Doppler Spread (due to varying freq across wide bw)
+            // fd_high = (v / (c / (fc + BW/2))) * sin * sin
+            // fd_low  = (v / (c / (fc - BW/2))) * sin * sin
+            // calculation now takes the worst-case squint angle across the swath
+            const maxAbsSquint = Math.max(Math.abs(sqLeft), Math.abs(sqRight));
+            const calcFDSpread = (f_hz) => (vel / (c_light / f_hz)) * Math.sin(maxAbsSquint) * Math.sin(graze);
+            const fd_high = calcFDSpread(fc + totbw/2);
+            const fd_low = calcFDSpread(fc - totbw/2);
+            // 2-way scaling
+            const scSpread = (fd_high - fd_low) * 2;
+            const sfEl = document.getElementById('info-sc-spread');
+            
+            const edgeLoss = calcTheoreticalSNRLoss(scSpread / 2, scbw);
+            let spreadText = fmtFreq(scSpread);
+            if (Math.abs(edgeLoss) > 0.1) {
+                spreadText += ` | Edge Loss: <span style="color:#f87171">${edgeLoss.toFixed(1)} dB</span>`;
+            }
+            sfEl.innerHTML = spreadText;
+            sfEl.style.color = Math.abs(scSpread) > (scbw * 0.1) ? '#f87171' : '#4ade80';
+
+            // Render active plots
+            for (const [id, shift] of Object.entries(shifts)) {
+                if (!biActive && id.startsWith('c-b')) continue;
+                drawCanvas(id, shift, scbw, compMode);
+            }
+        }
+
+        function fmtFreq(f) {
+            const af = Math.abs(f);
+            const sign = f < 0 ? '-' : '+';
+            if (af >= 1e6) return sign + (af / 1e6).toFixed(2) + ' MHz';
+            if (af >= 1e3) return sign + (af / 1e3).toFixed(2) + ' kHz';
+            return sign + af.toFixed(1) + ' Hz';
+        }
+
+        function calcTheoreticalSNRLoss(shift, bw) {
+            let desiredPower = 0;
+            let totalPower = 0;
+            const calcPower = (df) => (Math.abs(df) < 1e-6) ? 1 : Math.sin(Math.PI * df) / (Math.PI * df);
+            
+            let sinc_intended = calcPower(-shift / bw);
+            desiredPower = sinc_intended * sinc_intended;
+            
+            for (let k = -20; k <= 20; k++) {
+                let s_k = calcPower((-k * bw - shift) / bw);
+                totalPower += s_k * s_k;
+            }
+            
+            return (totalPower > 0) ? 10 * Math.log10(desiredPower / totalPower) : 0;
+        }
+
+        /* ─── Canvas Drawing ─── */
+        function drawCanvas(id, residualShift, scBW, mode) {
+            const canvas = document.getElementById(id);
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.parentElement.getBoundingClientRect();
+
+            if (rect.width === 0 || canvas.parentElement.style.display === 'none') return;
+
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const w = rect.width;
+            const h = rect.height;
+            ctx.clearRect(0, 0, w, h);
+
+            const baseColor = colors[id];
+            const bins = 6;
+            const fMin = -(bins + 0.5) * scBW;
+            const fMax = (bins + 0.5) * scBW;
+            const fToX = (f) => ((f - fMin) / (fMax - fMin)) * w;
+            const pToY = (p) => h - 25 - p * (h - 70);
+
+            // Sinc power
+            const calcPower = (df) => (Math.abs(df) < 1e-6) ? 1 : Math.sin(Math.PI * df) / (Math.PI * df);
+
+            // 1. Axis & Bins
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, pToY(0));
+            ctx.lineTo(w, pToY(0));
+            ctx.stroke();
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            for (let m = -bins; m <= bins; m++) {
+                let x = fToX(m * scBW);
+                ctx.moveTo(x, pToY(0));
+                ctx.lineTo(x, 35);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 3. Faint neighbors
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+            for (let k = -bins - 2; k <= bins + 2; k++) {
+                if (k === 0) continue;
+                ctx.beginPath();
+                for (let px = 0; px < w; px += 2) {
+                    let f = fMin + (px / w) * (fMax - fMin);
+                    let fk = k * scBW + residualShift;
+                    let sinc = calcPower((f - fk) / scBW);
+                    if (px === 0) ctx.moveTo(px, pToY(sinc * sinc));
+                    else ctx.lineTo(px, pToY(sinc * sinc));
+                }
+                ctx.stroke();
+            }
+
+            // 4. Center subcarrier
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = baseColor;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = baseColor;
+            ctx.beginPath();
+            for (let px = 0; px <= w; px += 2) {
+                let f = fMin + (px / w) * (fMax - fMin);
+                let sinc = calcPower((f - residualShift) / scBW);
+                let y = pToY(sinc * sinc);
+                if (px === 0) ctx.moveTo(px, y);
+                else ctx.lineTo(px, y);
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.lineTo(w, pToY(0)); ctx.lineTo(0, pToY(0)); ctx.closePath();
+            ctx.fillStyle = hexToRgba(baseColor, 0.1);
+            ctx.fill();
+
+            // 5. Sampled bins
+            let maxICI = 0;
+            let centerSNR = 0; // Capture SNR for the central bin
+            for (let m = -bins; m <= bins; m++) {
+                let fm = m * scBW;
+
+                let fk_intended = m * scBW + residualShift;
+                let sinc_intended = calcPower((fm - fk_intended) / scBW);
+                let desiredPower = sinc_intended * sinc_intended;
+
+                let totalPower = 0;
+                for (let k = -bins - 10; k <= bins + 10; k++) {
+                    let f_k = k * scBW + residualShift;
+                    let s_k = calcPower((fm - f_k) / scBW);
+                    totalPower += s_k * s_k;
+                }
+                
+                if (m === 0) {
+                    // Calculate SNR loss due to ICI (Desired / Total)
+                    // If totalPower is 0, snr is 0 dB.
+                    centerSNR = (totalPower > 0) ? 10 * Math.log10(desiredPower / totalPower) : 0;
+                }
+
+                // Severity metric (0 to 0.5, representing misalignment up to half a bin)
+                let err = (Math.abs(residualShift) / scBW);
+                // The worst-case orthogonality loss happens at 0.5 bin shift. 
+                // Any integer shift just shuffles the data but if properly tracked doesn't cause ICI. 
+                // But in this context where bins are fixed, a shift > 0.5 means severe ICI that doesn't just "get better" 
+                // unless it happens to land exactly on the next integer. 
+                // Since this model treats any uncompensated large shift as disastrous, cap it at 0.5 for the display percentage:
+                err = err % 1;
+                if (err > 0.5) err = 1 - err; 
+                // Actually, if the residual shift is > 1 bin, ICI is technically 100% everywhere because you're picking up the wrong data altogether.
+                let totalShiftBins = Math.abs(residualShift) / scBW;
+                if (totalShiftBins > 0.5) err = 0.5; // Cap at max severity
+
+                if (err > maxICI) maxICI = err;
+
+                let dropColor = '#4ade80';
+                if (err > 0.1) dropColor = '#facc15';
+                if (err > 0.3) dropColor = '#f87171';
+
+                let x = fToX(fm);
+                let yDesired = pToY(desiredPower);
+                let yTot = pToY(totalPower);
+
+                ctx.strokeStyle = dropColor;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x, pToY(0));
+                ctx.lineTo(x, yDesired);
+                ctx.stroke();
+
+                ctx.beginPath(); ctx.arc(x, yTot, 2.5, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fill();
+
+                ctx.fillStyle = dropColor;
+                ctx.beginPath(); ctx.arc(x, yDesired, 3.5, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.strokeStyle = '#111'; ctx.lineWidth = 1; ctx.stroke();
+            }
+
+            // 6. Info overlays
+            const infoBox = canvas.parentElement.querySelector('.plot-info');
+            if (infoBox) {
+                if (id === 'c-tx') {
+                    if (mode === 'rx_only' || mode === 'none') {
+                        infoBox.innerHTML = `<span style="color:#4ade80">Baseband — No pre-shift</span>`;
+                    } else {
+                        infoBox.innerHTML = `<span style="color:#facc15">Pre-compensated: ${fmtFreq(residualShift)}</span>`;
+                    }
+                } else {
+                    let pct = (maxICI * 200).toFixed(0);
+                    let severityColor = pct > 60 ? '#f87171' : (pct > 20 ? '#facc15' : '#4ade80');
+                    
+                    let snrLossText = "";
+                    if (Math.abs(centerSNR) > 0.1) {
+                        snrLossText = ` | Loss: <span style="color:${severityColor}">${centerSNR.toFixed(1)} dB</span>`;
+                    }
+                    
+                    infoBox.innerHTML = `Residual: ${fmtFreq(residualShift)} | ICI: <span style="color:${severityColor}">${pct}%</span>${snrLossText}`;
+                }
+            }
+        }
+
+        /* ─── Init ─── */
+        // Set initial bistatic state
+        document.querySelectorAll('.row-bi').forEach(el => el.style.display = 'none');
+        
+        window.addEventListener('resize', () => requestAnimationFrame(updateSimulation));
+        window.onload = () => { updateSimulation(); setTimeout(updateSimulation, 50); };
+    </script>
+</body>
+
+</html>

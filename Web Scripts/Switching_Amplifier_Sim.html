@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Switching Amplifiers Simulator (Class D, E, F)</title>
+    <style>
+        :root {
+            --bg-color: #171717;
+            --panel-bg: #222222;
+            --border: #333333;
+            --text-main: #f0f0f0;
+            --text-muted: #aaaaaa;
+            --input-color: #38bdf8;
+            --gate-color: #c084fc;
+            --pre-color: #ffaa00;
+            --post-color: #00ff66;
+            --vdd-color: #ff3366;
+            --danger: #ff4444;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        h1 { margin: 0; font-size: 22px; font-weight: 400; letter-spacing: 1px; }
+        h1 span { color: var(--input-color); font-weight: 700; }
+
+        #fs-btn {
+            background-color: transparent;
+            color: var(--input-color);
+            border: 1px solid var(--input-color);
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            text-transform: uppercase;
+            font-size: 11px;
+        }
+        #fs-btn:hover { background-color: rgba(56, 189, 248, 0.1); }
+
+        .main-container { display: flex; gap: 16px; flex: 1; min-height: 0; }
+
+        .controls {
+            width: 300px;
+            min-width: 300px;
+            background-color: var(--panel-bg);
+            border-radius: 8px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border: 1px solid var(--border);
+            overflow-y: auto;
+        }
+
+        .control-group { display: flex; flex-direction: column; gap: 4px; }
+        .control-header { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+        .val-display { font-family: monospace; font-size: 13px; color: #fff; }
+
+        input[type="range"] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%;
+            background: var(--input-color); cursor: pointer; margin-top: -5px;
+            box-shadow: 0 0 6px rgba(56, 189, 248, 0.5);
+        }
+        #slider-vdd::-webkit-slider-thumb { background: var(--vdd-color); box-shadow: 0 0 6px rgba(255, 51, 102, 0.5); }
+        input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #444; border-radius: 2px; }
+
+        select, button.action-btn {
+            background-color: #333; color: white; border: 1px solid #555;
+            padding: 7px; border-radius: 4px; cursor: pointer; font-family: inherit;
+            font-size: 12px; outline: none; transition: 0.2s;
+        }
+        select:hover, button.action-btn:hover { background-color: #444; border-color: #777; }
+
+        .danger-btn {
+            background-color: rgba(255, 68, 68, 0.1) !important;
+            color: var(--danger) !important; border-color: var(--danger) !important;
+            font-weight: bold; display: none; text-transform: uppercase;
+            box-shadow: 0 0 10px rgba(255, 68, 68, 0.2);
+        }
+        .danger-btn:hover { background-color: rgba(255, 68, 68, 0.2) !important; }
+
+        .display-area { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+        .readouts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        .readout-box {
+            background-color: var(--panel-bg); border: 1px solid var(--border);
+            border-radius: 6px; padding: 8px; text-align: center;
+            display: flex; flex-direction: column; justify-content: center;
+        }
+        .readout-label { font-size: 10px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .readout-value { font-size: 18px; font-family: 'Courier New', monospace; font-weight: bold; }
+
+        .scope-container {
+            flex: 1; background-color: #080808; border: 1px solid var(--border);
+            border-radius: 6px; position: relative; overflow: hidden;
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
+        }
+
+        .scope-label {
+            position: absolute; top: 6px; left: 8px; font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.5px; pointer-events: none; z-index: 2;
+            padding: 3px 8px; border-radius: 3px; background: rgba(0, 0, 0, 0.7);
+        }
+
+        canvas { width: 100%; height: 100%; display: block; }
+
+        .fried-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 0, 0, 0.2); display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            backdrop-filter: blur(4px); z-index: 10;
+        }
+        .fried-title { color: var(--danger); font-size: 36px; font-weight: 900; text-shadow: 0 0 15px rgba(255, 0, 0, 0.8); letter-spacing: 2px; margin-bottom: 6px; }
+        .fried-subtext { font-size: 14px; color: white; background: rgba(0, 0, 0, 0.7); padding: 6px 12px; border-radius: 4px; }
+
+        .info-text {
+            font-size: 10px; color: #bbb; line-height: 1.4;
+            background: #111; padding: 8px; border-radius: 4px; border: 1px solid #333;
+        }
+
+        hr.sep { border: none; border-top: 1px solid #333; width: 100%; margin: 2px 0; }
+        .section-label { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1><span>High-Efficiency</span> Switching RF Amplifiers (D / E / F)</h1>
+        <button id="fs-btn">Fullscreen</button>
+    </header>
+
+    <div class="main-container">
+        <div class="controls">
+            <!-- AMPLIFIER SECTION -->
+            <div class="section-label">Amplifier</div>
+            <div class="control-group">
+                <div class="control-header"><span>Topology</span></div>
+                <select id="select-class">
+                    <option value="D" selected>Class D — Push-Pull Pair (PWM)</option>
+                    <option value="E">Class E — Single-ended (ZVS)</option>
+                    <option value="F">Class F — Harmonic Tuning</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span style="color: var(--vdd-color)">Supply (V<sub>DD</sub>)</span>
+                    <span id="val-vdd" class="val-display">28 V</span>
+                </div>
+                <input type="range" id="slider-vdd" min="10" max="100" step="1" value="28">
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Load (R<sub>L</sub>)</span>
+                    <span id="val-rd" class="val-display">25 Ω</span>
+                </div>
+                <input type="range" id="slider-rd" min="5" max="200" step="1" value="25">
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Filter Q</span>
+                    <span id="val-fq" class="val-display">5.0</span>
+                </div>
+                <input type="range" id="slider-fq" min="0.5" max="20" step="0.5" value="5.0">
+            </div>
+
+            <hr class="sep">
+
+            <!-- SIGNAL SECTION -->
+            <div class="section-label">Input Signal</div>
+            <div class="control-group">
+                <div class="control-header"><span>Waveform Type</span></div>
+                <select id="select-mod">
+                    <option value="cw">Constant Wave (CW)</option>
+                    <option value="sine" selected>Sine Tone</option>
+                    <option value="bpsk">BPSK</option>
+                    <option value="qpsk">QPSK</option>
+                    <option value="lfm">LFM Chirp</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Amplitude</span>
+                    <span id="val-vac" class="val-display">1.00</span>
+                </div>
+                <input type="range" id="slider-vac" min="0" max="2" step="0.05" value="1.0">
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Carrier Freq (Hz)</span>
+                    <span id="val-fc" class="val-display">2.0</span>
+                </div>
+                <input type="range" id="slider-fc" min="0.5" max="10" step="0.1" value="2.0">
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Bandwidth (Hz)</span>
+                    <span id="val-bw" class="val-display">1.0</span>
+                </div>
+                <input type="range" id="slider-bw" min="0.1" max="10" step="0.1" value="1.0">
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Pulse Period / PRI (s)</span>
+                    <span id="val-pri" class="val-display">2.0</span>
+                </div>
+                <input type="range" id="slider-pri" min="0.2" max="20" step="0.1" value="2.0">
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Duty Cycle (%)</span>
+                    <span id="val-duty" class="val-display">100</span>
+                </div>
+                <input type="range" id="slider-duty" min="5" max="100" step="5" value="100">
+            </div>
+
+            <hr class="sep">
+
+            <!-- VIEW SECTION -->
+            <div class="section-label">View</div>
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Scope Speed</span>
+                    <span id="val-speed" class="val-display">2.0 st/fr</span>
+                </div>
+                <input type="range" id="slider-speed" min="0.1" max="10" step="0.1" value="2.0">
+            </div>
+
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Window Width</span>
+                    <span id="val-window" class="val-display">600 pts</span>
+                </div>
+                <input type="range" id="slider-window" min="100" max="2000" step="50" value="600">
+            </div>
+
+            <hr class="sep">
+
+            <button id="btn-reset-eff" class="action-btn">Reset Avg Efficiency</button>
+            <button id="btn-replace" class="action-btn danger-btn">Replace Fried Transistor</button>
+
+            <div class="info-text" id="topo-info">
+                <b>Class D:</b> Complementary push-pull pair (half-bridge). The input signal is compared to a high-frequency triangle carrier to produce PWM pulses. The switching node swings rail-to-rail (0 → V<sub>DD</sub>). An LC low-pass filter reconstructs the original signal. Theoretical η = 100%.
+            </div>
+        </div>
+
+        <div class="display-area">
+            <div class="readouts">
+                <div class="readout-box">
+                    <div class="readout-label">Topology</div>
+                    <div class="readout-value" id="read-topo" style="color: var(--input-color)">D</div>
+                </div>
+                <div class="readout-box">
+                    <div class="readout-label">V<sub>DD</sub></div>
+                    <div class="readout-value" id="read-vdd" style="color: var(--vdd-color)">28.0 V</div>
+                </div>
+                <div class="readout-box">
+                    <div class="readout-label">RF Out Power</div>
+                    <div class="readout-value" id="read-pout" style="color: var(--post-color)">0.0 W</div>
+                </div>
+                <div class="readout-box">
+                    <div class="readout-label">Inst. η</div>
+                    <div class="readout-value" id="read-inst-eff" style="color: #4ade80">0.0 %</div>
+                </div>
+                <div class="readout-box">
+                    <div class="readout-label">Avg η</div>
+                    <div class="readout-value" id="read-avg-eff" style="color: #4ade80">0.0 %</div>
+                </div>
+            </div>
+
+            <!-- SCOPE 1: ORIGINAL INPUT SIGNAL -->
+            <div class="scope-container">
+                <div class="scope-label" style="color: var(--input-color)">⏤ Original Input Signal</div>
+                <canvas id="c_input"></canvas>
+            </div>
+
+            <!-- SCOPE 2: GATE DRIVE (PWM / SQUARE) -->
+            <div class="scope-container">
+                <div class="scope-label" style="color: var(--gate-color)" id="lbl-gate">⏤ Gate Drive (PWM)</div>
+                <canvas id="c_gate"></canvas>
+            </div>
+
+            <!-- SCOPE 3: PRE-FILTER OUTPUT (SWITCHING NODE VDS) -->
+            <div class="scope-container">
+                <div class="scope-label" style="color: var(--pre-color)">⏤ Amplifier Output — Pre-Filter (V<sub>DS</sub>)</div>
+                <canvas id="c_pre"></canvas>
+            </div>
+
+            <!-- SCOPE 4: POST-FILTER OUTPUT (RECONSTRUCTED) -->
+            <div class="scope-container">
+                <div class="scope-label" style="color: var(--post-color)" id="lbl-post">⏤ Amplifier Output — Post-Filter (LC LPF)</div>
+                <canvas id="c_post"></canvas>
+                <div class="fried-overlay" id="fried-overlay">
+                    <div class="fried-title">DEVICE FRIED</div>
+                    <div class="fried-subtext" id="fried-reason">Breakdown Exceeded</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Fullscreen ---
+        const fsBtn = document.getElementById('fs-btn');
+        fsBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+        });
+        document.addEventListener('fullscreenchange', () => {
+            fsBtn.style.display = document.fullscreenElement ? 'none' : 'block';
+        });
+
+        // --- UI Bindings ---
+        const select_class = document.getElementById('select-class');
+        const slider_vac = document.getElementById('slider-vac');
+        const select_mod = document.getElementById('select-mod');
+        const slider_speed = document.getElementById('slider-speed');
+        const slider_vdd = document.getElementById('slider-vdd');
+        const slider_rd = document.getElementById('slider-rd');
+        const slider_fq = document.getElementById('slider-fq');
+        const slider_fc = document.getElementById('slider-fc');
+        const slider_duty = document.getElementById('slider-duty');
+        const slider_pri = document.getElementById('slider-pri');
+        const slider_bw = document.getElementById('slider-bw');
+        const slider_window = document.getElementById('slider-window');
+        const btn_reset_eff = document.getElementById('btn-reset-eff');
+        const btn_replace = document.getElementById('btn-replace');
+        const topo_info = document.getElementById('topo-info');
+
+        let amp_class = 'D';
+        let V_AC = 1.0;
+        let mod_type = 'sine';
+        let sim_speed = 2.0;
+        let VDD = 28;
+        let RL = 25;
+        let filterQ = 5.0;
+        let fc = 2.0;           // carrier frequency (Hz conceptual)
+        let duty = 100;         // duty cycle percent (of PRI)
+        let PRI = 2.0;          // pulse repetition interval (seconds)
+        let BW = 1.0;           // signal bandwidth (Hz)
+        let windowWidth = 600;  // history samples to display
+        let step_acc = 0;
+        let isFried = false;
+
+        const f_pwm_ratio = 10; // PWM carrier is always f_pwm_ratio × fc
+
+        const INFO = {
+            'D': "<b>Class D:</b> Complementary push-pull pair (half-bridge). The input signal is compared to a high-frequency triangle carrier to produce PWM pulses. The switching node swings rail-to-rail (0 → V<sub>DD</sub>). An LC low-pass filter reconstructs the original signal. Theoretical η = 100%.",
+            'E': "<b>Class E:</b> Single transistor operating as an on/off switch with a tuned shunt-capacitor + series-resonant load network. When the switch is OFF, V<sub>DS</sub> rings up to ~3.56× V<sub>DD</sub> and swoops back to 0V with zero slope right before turn-on (ZVS + ZVDS). The resonant network intrinsically acts as a bandpass filter. Theoretical η = 100%.",
+            'F': "<b>Class F:</b> Single transistor with a multi-harmonic resonant load network. Even harmonics are short-circuited, odd harmonics are open-circuited. This shapes V<sub>DS</sub> into a square wave (0 → 2×V<sub>DD</sub>) and drain current into a half-sine, minimizing V×I overlap. The harmonic network acts as a bandpass filter at the fundamental. Theoretical η = 100%."
+        };
+
+        const GATE_LBL = {
+            'D': '⏤ Gate Drive (PWM Pulses from Comparator)',
+            'E': '⏤ Gate Drive (50% Duty Square Wave)',
+            'F': '⏤ Gate Drive (Overdriven Square Wave)'
+        };
+
+        const POST_LBL = {
+            'D': '⏤ Amplifier Output — Post-Filter (LC Low-Pass)',
+            'E': '⏤ Amplifier Output — Post-Filter (Series Resonant BPF)',
+            'F': '⏤ Amplifier Output — Post-Filter (Harmonic Resonant BPF)'
+        };
+
+        select_class.addEventListener('change', (e) => {
+            amp_class = e.target.value;
+            topo_info.innerHTML = INFO[amp_class];
+            document.getElementById('lbl-gate').innerHTML = GATE_LBL[amp_class];
+            document.getElementById('lbl-post').innerHTML = POST_LBL[amp_class];
+            document.getElementById('read-topo').innerText = amp_class;
+            hist = [];
+            resetFilter();
+        });
+
+        slider_vac.addEventListener('input', (e) => { V_AC = parseFloat(e.target.value); document.getElementById('val-vac').innerText = V_AC.toFixed(2); });
+        select_mod.addEventListener('change', (e) => { mod_type = e.target.value; });
+        slider_speed.addEventListener('input', (e) => { sim_speed = parseFloat(e.target.value); document.getElementById('val-speed').innerText = sim_speed.toFixed(1) + ' st/fr'; });
+        slider_vdd.addEventListener('input', (e) => { VDD = parseFloat(e.target.value); document.getElementById('val-vdd').innerText = VDD.toFixed(0) + ' V'; });
+        slider_rd.addEventListener('input', (e) => { RL = parseFloat(e.target.value); document.getElementById('val-rd').innerText = RL.toFixed(0) + ' Ω'; });
+        slider_fq.addEventListener('input', (e) => { filterQ = parseFloat(e.target.value); document.getElementById('val-fq').innerText = filterQ.toFixed(1); });
+        slider_fc.addEventListener('input', (e) => { fc = parseFloat(e.target.value); document.getElementById('val-fc').innerText = fc.toFixed(1); hist = []; resetFilter(); });
+        slider_duty.addEventListener('input', (e) => { duty = parseFloat(e.target.value); document.getElementById('val-duty').innerText = duty.toFixed(0); });
+        slider_pri.addEventListener('input', (e) => { PRI = parseFloat(e.target.value); document.getElementById('val-pri').innerText = PRI.toFixed(1); });
+        slider_bw.addEventListener('input', (e) => { BW = parseFloat(e.target.value); document.getElementById('val-bw').innerText = BW.toFixed(1); });
+        slider_window.addEventListener('input', (e) => { windowWidth = parseInt(e.target.value); document.getElementById('val-window').innerText = windowWidth + ' pts'; });
+
+        btn_reset_eff.addEventListener('click', () => { Pdc_sum = 0; Prf_sum = 0; Pdc_inst = 0; Prf_inst = 0; });
+        btn_replace.addEventListener('click', () => {
+            isFried = false;
+            document.getElementById('fried-overlay').style.display = 'none';
+            btn_replace.style.display = 'none';
+            if (VDD > 50) { VDD = 28; slider_vdd.value = 28; document.getElementById('val-vdd').innerText = '28 V'; }
+            hist = [];
+            resetFilter();
+            Pdc_sum = 0; Prf_sum = 0; Pdc_inst = 0; Prf_inst = 0;
+        });
+
+        function triggerFry(reason) {
+            isFried = true;
+            document.getElementById('fried-overlay').style.display = 'flex';
+            document.getElementById('fried-reason').innerText = reason;
+            btn_replace.style.display = 'block';
+        }
+
+        // --- Canvas Setup ---
+        const c_input = document.getElementById('c_input');
+        const c_gate = document.getElementById('c_gate');
+        const c_pre = document.getElementById('c_pre');
+        const c_post = document.getElementById('c_post');
+        const ctx_input = c_input.getContext('2d');
+        const ctx_gate = c_gate.getContext('2d');
+        const ctx_pre = c_pre.getContext('2d');
+        const ctx_post = c_post.getContext('2d');
+
+        function resizeAllCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            [c_input, c_gate, c_pre, c_post].forEach(c => {
+                const p = c.parentElement;
+                c.width = p.clientWidth * dpr;
+                c.height = p.clientHeight * dpr;
+                c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+            });
+        }
+        window.addEventListener('resize', resizeAllCanvas);
+        resizeAllCanvas();
+
+        // --- Simulation Constants ---
+        let t = 0;
+        const dt = 0.002;         // Fine time step
+        let hist = [];
+        const VBR = 200;          // Breakdown voltage
+        const PMAX = 200;         // Thermal limit
+        const TWO_PI = 2 * Math.PI;
+
+        // --- Biquad Filter ---
+        let filt = { x1: 0, x2: 0, y1: 0, y2: 0 };
+        function resetFilter() { filt = { x1: 0, x2: 0, y1: 0, y2: 0 }; }
+
+        function biquad(x, c) {
+            let y = c.b0 * x + c.b1 * filt.x1 + c.b2 * filt.x2
+                              - c.a1 * filt.y1 - c.a2 * filt.y2;
+            filt.x2 = filt.x1; filt.x1 = x;
+            filt.y2 = filt.y1; filt.y1 = y;
+            return y;
+        }
+
+        function lpfCoef(f0, Q) {
+            let fs = 1 / dt;
+            let w0 = TWO_PI * f0 / fs;
+            let alpha = Math.sin(w0) / (2 * Q);
+            let cosw = Math.cos(w0);
+            let a0 = 1 + alpha;
+            return {
+                b0: ((1 - cosw) / 2) / a0,
+                b1: (1 - cosw) / a0,
+                b2: ((1 - cosw) / 2) / a0,
+                a1: (-2 * cosw) / a0,
+                a2: (1 - alpha) / a0
+            };
+        }
+
+        function bpfCoef(f0, Q) {
+            let fs = 1 / dt;
+            let w0 = TWO_PI * f0 / fs;
+            let alpha = Math.sin(w0) / (2 * Q);
+            let cosw = Math.cos(w0);
+            let a0 = 1 + alpha;
+            return {
+                b0: alpha / a0,
+                b1: 0,
+                b2: -alpha / a0,
+                a1: (-2 * cosw) / a0,
+                a2: (1 - alpha) / a0
+            };
+        }
+
+        // --- Efficiency Tracking ---
+        let Pdc_sum = 0, Prf_sum = 0;
+        let Pdc_inst = 0, Prf_inst = 0;
+
+        // --- Signal Generation ---
+        // BPSK / QPSK state
+        let sym_last_t = -100;
+        let bpsk_sym = 1;         // Current BPSK symbol: ±1
+        let qpsk_I = 1, qpsk_Q = 1; // Current QPSK symbol
+        let filt_I = 0, filt_Q = 0;  // Filtered I/Q for smooth transitions
+
+        // LFM state
+        let lfm_phase = 0;
+
+        // Pseudo-random for deterministic symbol generation
+        let sym_seed = 42;
+        function nextRand() {
+            sym_seed = (sym_seed * 1103515245 + 12345) & 0x7fffffff;
+            return (sym_seed / 0x7fffffff);
+        }
+
+        function generateInputSignal(t_now) {
+            /*  Returns the original RF input signal value at time t_now.
+             *  This is the "ideal" signal the amplifier is asked to reproduce.
+             *  All waveforms are modulated onto the carrier at frequency fc.
+             */
+
+            // Pulsed operation: the amplifier transmits for (PRI × duty%) then goes silent
+            // PRI = pulse repetition interval. duty=100% means always on (CW).
+            let t_in_pri = ((t_now % PRI) + PRI) % PRI;
+            let pulse_on_time = PRI * (duty / 100);
+            if (t_in_pri > pulse_on_time) return 0; // OFF between pulses
+
+            if (mod_type === 'cw') {
+                // Pure carrier tone
+                return V_AC * Math.sin(TWO_PI * fc * t_now);
+
+            } else if (mod_type === 'sine') {
+                // AM: carrier modulated by a slow envelope
+                let env = 0.5 + 0.5 * Math.sin(TWO_PI * 0.2 * t_now);
+                return V_AC * env * Math.sin(TWO_PI * fc * t_now);
+
+            } else if (mod_type === 'bpsk') {
+                // BPSK: symbol rate = BW (bandwidth determines symbol rate)
+                let sym_rate = BW;
+                let sym_period = 1.0 / sym_rate;
+                if (t_now - sym_last_t >= sym_period) {
+                    sym_last_t = t_now;
+                    bpsk_sym = nextRand() > 0.5 ? 1 : -1;
+                }
+                // Smooth the symbol transition slightly
+                let tau = sym_period * 0.05;
+                filt_I += (bpsk_sym - filt_I) * (dt / Math.max(tau, dt));
+                return V_AC * filt_I * Math.sin(TWO_PI * fc * t_now);
+
+            } else if (mod_type === 'qpsk') {
+                // QPSK: 2 bits per symbol, symbol rate = BW/2 (double spectral efficiency)
+                let sym_rate = BW / 2;
+                let sym_period = 1.0 / sym_rate;
+                if (t_now - sym_last_t >= sym_period) {
+                    sym_last_t = t_now;
+                    qpsk_I = nextRand() > 0.5 ? 0.707 : -0.707;
+                    qpsk_Q = nextRand() > 0.5 ? 0.707 : -0.707;
+                }
+                let tau = sym_period * 0.05;
+                filt_I += (qpsk_I - filt_I) * (dt / Math.max(tau, dt));
+                filt_Q += (qpsk_Q - filt_Q) * (dt / Math.max(tau, dt));
+                let phase = TWO_PI * fc * t_now;
+                return V_AC * (filt_I * Math.cos(phase) - filt_Q * Math.sin(phase));
+
+            } else if (mod_type === 'lfm') {
+                // LFM Chirp: sweeps from (fc-BW/2) to (fc+BW/2)
+                let sweep_period = 5.0 / fc; // sweep takes 5 carrier cycles
+                let mod_t = ((t_now % sweep_period) + sweep_period) % sweep_period;
+                let f_inst = (fc - BW/2) + BW * (mod_t / sweep_period); // fc-BW/2 → fc+BW/2
+                lfm_phase += TWO_PI * f_inst * dt;
+                return V_AC * Math.sin(lfm_phase);
+            }
+
+            return 0;
+        }
+
+        /* ============================================================
+         *  CORE PHYSICS: simulate one time step
+         * ============================================================ */
+        function simulate(t_now) {
+            let input_signal = generateInputSignal(t_now);
+
+            let gate = 0;
+            let vds = 0;
+            let id_supply = 0;
+            const Ron = 0.15;
+
+            // Use absolute value of input as drive envelope for switching classes
+            let env = Math.abs(input_signal);
+
+            if (amp_class === 'D') {
+                /* ---- CLASS D: Push-Pull Half-Bridge with PWM ---- */
+                let f_pwm = fc * f_pwm_ratio;
+                let tri_phase = (f_pwm * t_now) % 1.0;
+                let v_tri = 4 * Math.abs(tri_phase - 0.5) - 1.0;
+
+                let baseband = Math.max(-1, Math.min(1, input_signal));
+
+                if (baseband > v_tri) {
+                    gate = 1;
+                    vds = VDD;
+                    id_supply = VDD / RL;
+                } else {
+                    gate = -1;
+                    vds = 0;
+                    id_supply = 0;
+                }
+
+            } else if (amp_class === 'E') {
+                /* ---- CLASS E: Single Transistor, ZVS/ZVDS ---- */
+                let phase = (TWO_PI * fc * t_now) % TWO_PI;
+                let switch_on = phase < Math.PI;
+
+                gate = switch_on ? 1.0 : 0.0;
+
+                if (switch_on) {
+                    let norm_t = phase / Math.PI;
+                    let i_peak = (VDD / RL) * 2.8 * Math.min(env, 2);
+                    id_supply = i_peak * Math.sin(Math.PI * norm_t);
+                    vds = id_supply * Ron;
+                } else {
+                    id_supply = 0;
+                    let theta = phase - Math.PI;
+                    let phi = -0.5672;
+                    let norm = Math.PI + theta * Math.cos(phi) - Math.sin(theta + phi) + Math.sin(phi);
+                    vds = (VDD / Math.PI) * norm * Math.min(env, 2);
+                    if (vds < 0) vds = 0;
+                }
+
+            } else if (amp_class === 'F') {
+                /* ---- CLASS F: Single Transistor, Harmonic Tuning ---- */
+                let phase = (TWO_PI * fc * t_now) % TWO_PI;
+                let switch_on = phase < Math.PI;
+
+                gate = switch_on ? 1.0 : -1.0;
+
+                let vds_ac = Math.sin(phase)
+                           + (1/3) * Math.sin(3 * phase)
+                           + (1/5) * Math.sin(5 * phase)
+                           + (1/7) * Math.sin(7 * phase);
+                vds = VDD * (1 + (vds_ac / 1.1) * Math.min(env, 2));
+                if (vds < 0) vds = 0;
+
+                if (switch_on) {
+                    let norm_t = phase / Math.PI;
+                    id_supply = (VDD / RL) * 2.0 * Math.min(env, 2) * Math.sin(Math.PI * norm_t);
+                    if (id_supply < 0) id_supply = 0;
+                } else {
+                    id_supply = 0;
+                }
+            }
+
+            // Power Dissipation
+            let pdiss = vds * id_supply;
+            if (!isFried) {
+                if (vds > VBR) triggerFry(`Breakdown (Vds > ${VBR}V)`);
+                if (pdiss > PMAX) triggerFry(`Thermal (P > ${PMAX}W)`);
+            }
+
+            // Post-Filter
+            let vout = 0;
+            if (amp_class === 'D') {
+                let coef = lpfCoef(fc * 2.0, filterQ);
+                vout = biquad(vds, coef);
+            } else {
+                let coef = bpfCoef(fc, filterQ);
+                vout = biquad(vds - VDD, coef);
+            }
+
+            let prf = (vout * vout) / RL;
+            let pdc = VDD * id_supply;
+
+            return { input: input_signal, gate, vds, vout, id_supply, pdiss, pdc, prf };
+        }
+
+        // --- Rendering ---
+        function drawGrid(ctx, w, h, show_center) {
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 1; i < 10; i++) { let x = w * i / 10; ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+            for (let i = 1; i < 5; i++) { let y = h * i / 5; ctx.moveTo(0, y); ctx.lineTo(w, y); }
+            ctx.stroke();
+
+            if (show_center) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+                ctx.setLineDash([3, 4]);
+                ctx.beginPath();
+                ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+
+        function renderScope(ctx, canvas, yMax, yMin, color, dataKey, opts = {}) {
+            const dpr = window.devicePixelRatio || 1;
+            const w = canvas.width / dpr;
+            const h = canvas.height / dpr;
+            ctx.clearRect(0, 0, w, h);
+
+            drawGrid(ctx, w, h, opts.center);
+
+            // Only show the last windowWidth samples
+            let data = hist;
+            let startIdx = Math.max(0, data.length - windowWidth);
+            let view = data.slice(startIdx);
+            if (view.length < 2) return;
+
+            const mapX = (i) => (i / (view.length - 1)) * w;
+            const mapY = (v) => {
+                let c = Math.min(Math.max(v, yMin), yMax);
+                return h - ((c - yMin) / (yMax - yMin)) * h;
+            };
+
+            // Scale labels
+            ctx.fillStyle = 'rgba(255,255,255,0.25)';
+            ctx.font = '10px monospace';
+            let topLabel = yMax >= 1000 ? (yMax/1000).toFixed(1)+'k' : yMax.toFixed(0);
+            let botLabel = yMin >= 1000 ? (yMin/1000).toFixed(1)+'k' : yMin <= -1000 ? (yMin/1000).toFixed(1)+'k' : yMin.toFixed(0);
+            ctx.fillText(topLabel, w - 28, 12);
+            ctx.fillText(botLabel, w - 28, h - 3);
+
+            // VDD reference
+            if (opts.showVDD && yMax > VDD && yMin <= VDD) {
+                ctx.strokeStyle = 'rgba(255, 51, 102, 0.35)';
+                ctx.setLineDash([5, 3]);
+                ctx.beginPath();
+                ctx.moveTo(0, mapY(VDD)); ctx.lineTo(w, mapY(VDD));
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(255,51,102,0.35)';
+                ctx.fillText('VDD', 4, mapY(VDD) - 3);
+            }
+
+            // Zero reference
+            if (yMin < 0 && yMax > 0) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.setLineDash([2, 3]);
+                ctx.beginPath();
+                ctx.moveTo(0, mapY(0)); ctx.lineTo(w, mapY(0));
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                ctx.fillText('0', 4, mapY(0) - 3);
+            }
+
+            // Trace
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.8;
+            ctx.lineJoin = 'round';
+            for (let i = 0; i < view.length; i++) {
+                let x = mapX(i), y = mapY(view[i][dataKey]);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        // --- Main Loop ---
+        let frameN = 0;
+
+        function animate() {
+            step_acc += sim_speed;
+            let steps = Math.floor(step_acc);
+            step_acc -= steps;
+
+            for (let i = 0; i < steps; i++) {
+                t += dt;
+                let r = simulate(t);
+
+                let tau = 0.08;
+                Pdc_inst += (r.pdc - Pdc_inst) * (dt / tau);
+                Prf_inst += (r.prf - Prf_inst) * (dt / tau);
+                if (!isFried && r.pdc > 0.001) {
+                    Pdc_sum += r.pdc * dt;
+                    Prf_sum += r.prf * dt;
+                }
+
+                hist.push({
+                    input: r.input,
+                    gate: r.gate,
+                    vds: r.vds,
+                    vout: r.vout,
+                    prf: r.prf
+                });
+                // Keep more history than windowWidth so zooming out works instantly
+                let maxKeep = Math.max(windowWidth + 200, 2200);
+                if (hist.length > maxKeep) hist.shift();
+            }
+
+            // Scope 1: Original Input Signal
+            let inputPeak = Math.max(V_AC * 1.2, 0.5);
+            renderScope(ctx_input, c_input, inputPeak, -inputPeak, '#38bdf8', 'input', { center: true });
+
+            // Scope 2: Gate Drive
+            if (amp_class === 'D') {
+                renderScope(ctx_gate, c_gate, 1.5, -1.5, '#c084fc', 'gate', { center: true });
+            } else {
+                renderScope(ctx_gate, c_gate, 1.5, -1.5, '#c084fc', 'gate', { center: true });
+            }
+
+            // Scope 3: Pre-Filter VDS
+            let preMax = VDD * 1.2;
+            if (amp_class === 'E') preMax = VDD * 4.5;
+            else if (amp_class === 'F') preMax = VDD * 2.8;
+            renderScope(ctx_pre, c_pre, preMax, 0, '#ffaa00', 'vds', { showVDD: true });
+
+            // Scope 4: Post-Filter Output
+            if (amp_class === 'D') {
+                renderScope(ctx_post, c_post, VDD * 1.2, -VDD * 0.2, '#00ff66', 'vout', { showVDD: false });
+            } else {
+                let bpPeak = VDD * 1.5;
+                renderScope(ctx_post, c_post, bpPeak, -bpPeak, '#00ff66', 'vout', { center: true });
+            }
+
+            // UI readouts
+            if (frameN % 4 === 0 && hist.length > 0) {
+                let cur = hist[hist.length - 1];
+                document.getElementById('read-vdd').innerText = VDD.toFixed(1) + ' V';
+                document.getElementById('read-pout').innerText = Math.max(0, cur.prf).toFixed(2) + ' W';
+
+                let ie = Pdc_inst > 0.05 ? (Prf_inst / Pdc_inst) * 100 : 0;
+                document.getElementById('read-inst-eff').innerText = Math.min(100, Math.max(0, ie)).toFixed(1) + ' %';
+
+                let ae = Pdc_sum > 0.05 ? (Prf_sum / Pdc_sum) * 100 : 0;
+                document.getElementById('read-avg-eff').innerText = Math.min(100, Math.max(0, ae)).toFixed(1) + ' %';
+            }
+            frameN++;
+            requestAnimationFrame(animate);
+        }
+
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>

@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D STAP Multi-Beam Phased Array</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0b0f19;
+            font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        .ui-panel {
+            background: rgba(11, 15, 25, 0.92);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            box-shadow: 0 0 20px rgba(0, 80, 255, 0.15);
+            user-select: none;
+            transition: opacity 0.3s ease;
+            max-height: 98vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #3b82f6 transparent;
+        }
+
+        .hidden-ui {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .array-tab {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .array-tab.active {
+            background: rgba(59, 130, 246, 0.7);
+            border-color: #60a5fa;
+            color: white;
+            font-weight: bold;
+        }
+
+        .panel-divider {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 2px;
+            background: rgba(30, 50, 80, 0.8);
+            z-index: 5;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #1e3a8a;
+            height: 5px;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #60a5fa;
+            cursor: pointer;
+            border: 2px solid #0b0f19;
+        }
+
+        input[type=number] {
+            -moz-appearance: textfield;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            color: #eff6ff;
+            border-radius: 4px;
+            padding: 2px 4px;
+            outline: none;
+            text-align: center;
+        }
+
+        input[type=number]:focus {
+            border-color: #60a5fa;
+            background: rgba(30, 58, 138, 0.8);
+        }
+
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            opacity: 1;
+        }
+
+        #legend-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 320px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            display: none;
+            text-align: center;
+            z-index: 10;
+        }
+
+        .spectrum-bar {
+            height: 10px;
+            width: 100%;
+            background: linear-gradient(to right, #ff0000 0%, #00ff00 50%, #0000ff 100%);
+            margin-bottom: 5px;
+            border-radius: 2px;
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #ddd;
+            font-weight: bold;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="ui-panel" class="absolute top-4 left-4 z-10 w-[380px] ui-panel rounded-lg p-4 text-blue-100 text-xs">
+        <h1 class="text-lg font-bold text-blue-400 mb-3 border-b border-blue-900 pb-2 flex justify-between items-end">
+            <span>STAP Multi-Beam Engine</span>
+            <span class="text-[10px] text-gray-500 font-normal">v12.1</span>
+        </h1>
+
+        <div class="mb-3 space-y-2 border-b border-blue-900 pb-3">
+            <div class="flex justify-between items-center">
+                <span class="text-gray-400" title="Physical hardware spacing is fixed to λ/2 of this frequency">Design
+                    Freq (GHz)</span>
+                <div class="flex items-center space-x-2 w-[55%]">
+                    <input type="range" id="sl-des-freq" min="4" max="24" step="0.5" value="11.7" class="w-full">
+                    <input type="number" id="inp-des-freq" value="11.7" class="w-16">
+                </div>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-yellow-400 font-bold">Transmit Freq (GHz)</span>
+                <div class="flex items-center space-x-2 w-[55%]">
+                    <input type="range" id="sl-tx-freq" min="4" max="24" step="0.5" value="11.7" class="w-full">
+                    <input type="number" id="inp-tx-freq" value="11.7" class="w-16 !border-yellow-600">
+                </div>
+            </div>
+
+            <div class="flex flex-col mt-2 pt-2 border-t border-blue-900/50">
+                <span class="text-gray-400 mb-1">Transmitted Waveform</span>
+                <select id="sel-waveform"
+                    class="w-full bg-blue-900/40 border border-blue-700 rounded px-2 py-1.5 text-white outline-none cursor-pointer">
+                    <option value="0">Carrier Wave (Narrowband CW)</option>
+                    <option value="1">PRN (BPSK / QPSK)</option>
+                    <option value="2">OFDM (BPSK / QPSK)</option>
+                    <option value="3">64QAM Single Carrier</option>
+                    <option value="4">64QAM OFDM</option>
+                    <option value="5">LFM (Chirp)</option>
+                </select>
+            </div>
+
+            <div id="bw-controls" style="display: none;"
+                class="space-y-2 pt-2 bg-black/30 p-2 rounded mt-2 border border-blue-800/30">
+                <div class="flex justify-between items-center">
+                    <span class="text-purple-300 font-bold">Total BW (MHz)</span>
+                    <div class="flex items-center space-x-2 w-[55%]">
+                        <input type="range" id="sl-bw" min="10" max="4000" step="10" value="500" class="w-full">
+                        <input type="number" id="inp-bw" value="500" class="w-16 !border-purple-600">
+                    </div>
+                </div>
+                <div class="flex justify-between items-center" id="ofdm-controls" style="display: none;">
+                    <span class="text-purple-300">Subcarrier Spc (kHz)</span>
+                    <div class="flex items-center space-x-2 w-[55%]">
+                        <input type="range" id="sl-sub-bw" min="5" max="500" step="5" value="15" class="w-full">
+                        <input type="number" id="inp-sub-bw" value="15" class="w-16 !border-purple-600">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="block text-gray-400 mb-1">Active Comparison Panels</label>
+            <div class="flex space-x-2">
+                <button onclick="setArrayCount(1)" id="btn-arr-1"
+                    class="flex-1 bg-blue-900/50 border border-blue-700 hover:bg-blue-800 text-white py-1.5 rounded array-tab active">1</button>
+                <button onclick="setArrayCount(2)" id="btn-arr-2"
+                    class="flex-1 bg-blue-900/50 border border-blue-700 hover:bg-blue-800 text-white py-1.5 rounded array-tab">2</button>
+                <button onclick="setArrayCount(3)" id="btn-arr-3"
+                    class="flex-1 bg-blue-900/50 border border-blue-700 hover:bg-blue-800 text-white py-1.5 rounded array-tab">3</button>
+            </div>
+        </div>
+
+        <div id="array-controls" class="space-y-3"></div>
+
+        <div class="border-t border-blue-900 pt-3 mt-3 space-y-3">
+            <button id="toggle-btn"
+                class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded shadow transition-colors font-bold tracking-wide">
+                START SIMULATION
+            </button>
+
+            <div class="flex flex-col space-y-1">
+                <span class="text-gray-400">Voxel Rendering Mode</span>
+                <select id="sel-viz-mode"
+                    class="w-full bg-blue-900/40 border border-blue-700 rounded px-2 py-1.5 text-white outline-none cursor-pointer font-bold">
+                    <option value="0">Intensity Heatmap (Summed Power)</option>
+                    <option value="1" selected>Distinct Beam Colors (Additive Interference)</option>
+                    <option value="2">Rx Spectral Squint Map (Grating Lobes)</option>
+                </select>
+            </div>
+
+            <div class="flex justify-between items-center pt-2 border-t border-blue-900/30">
+                <span class="text-gray-400 font-bold">Active Steer Target</span>
+                <div id="steer-beam-btns" class="flex space-x-1"></div>
+            </div>
+
+            <div class="flex justify-between items-center pt-1">
+                <span class="text-gray-500">Dynamic Range (Gamma)</span>
+                <div class="flex items-center space-x-2 w-[55%]">
+                    <input type="range" id="sl-dyn" min="0.1" max="2.0" step="0.05" value="0.5" class="w-full">
+                    <input type="number" id="inp-dyn" value="0.5" class="w-16">
+                </div>
+            </div>
+            <div class="flex justify-between items-center pb-2">
+                <span class="text-gray-500">Visual Brightness</span>
+                <div class="flex items-center space-x-2 w-[55%]">
+                    <input type="range" id="sl-bright" min="0.1" max="5.0" step="0.1" value="1.5" class="w-full">
+                    <input type="number" id="inp-bright" value="1.5" class="w-16">
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-2 pt-2 border-t border-blue-900 text-[10px] text-gray-400 text-center space-y-1">
+            <p>• <span class="text-white font-bold">WASD</span> Steer Target Beam | <span
+                    class="text-white font-bold">F</span> Fullscreen</p>
+            <p>• <span class="text-white">Right Click</span> Rotate | <span class="text-white">Scroll</span> Zoom</p>
+            <div class="mt-2 text-indigo-300 font-bold text-[11px] tracking-wide bg-black/40 p-1.5 rounded border border-indigo-800/50"
+                id="status-line">Beam 1 Target | θ: 0°, φ: 0°</div>
+        </div>
+    </div>
+
+    <div id="legend-panel">
+        <div class="spectrum-bar"></div>
+        <div class="legend-labels">
+            <span id="lbl-low" class="text-red-400">Low Freq</span>
+            <span id="lbl-center" class="text-green-400">Center Freq</span>
+            <span id="lbl-high" class="text-blue-400">High Freq</span>
+        </div>
+        <div class="text-[10px] text-gray-400 mt-2 uppercase tracking-widest">Spectral Spatial Squint Map</div>
+    </div>
+
+    <div id="dividers"></div>
+    <div id="canvas-container"></div>
+
+    <script>
+        (function () {
+            const VISUAL_WAVELENGTH = 0.5;
+            const VISUAL_SPACING = VISUAL_WAVELENGTH / 2.0;
+
+            // Distinct Beam Colors for Additive Inference Map
+            const BEAM_COLORS_HEX = ['#ff3333', '#33ff33', '#3388ff', '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#ffffff'];
+            const BEAM_COLORS = BEAM_COLORS_HEX.map(c => new THREE.Color(c));
+            const U_BEAM_COLORS = BEAM_COLORS.map(c => new THREE.Vector3(c.r, c.g, c.b));
+
+            // =====================================================
+            // STATE CONFIGURATION
+            // =====================================================
+            const defaultArrayConfig = () => {
+                let beams = [];
+                // Initial Default Offset representing 4 Displaced Phase Centers
+                beams.push({ pcX: -6, pcY: -6, offX: 0, offY: 0, pcCompensate: true, spoilX: 0, spoilY: 0 });
+                beams.push({ pcX: 6, pcY: 6, offX: 0, offY: 0, pcCompensate: true, spoilX: 0, spoilY: 0 });
+                beams.push({ pcX: -6, pcY: 6, offX: 0, offY: 0, pcCompensate: true, spoilX: 0, spoilY: 0 });
+                beams.push({ pcX: 6, pcY: -6, offX: 0, offY: 0, pcCompensate: true, spoilX: 0, spoilY: 0 });
+                for (let i = 4; i < 8; i++) beams.push({ pcX: i * 2, pcY: 0, offX: 0, offY: 0, pcCompensate: true, spoilX: 0, spoilY: 0 });
+                return { type: 'phased_dig', gridSize: 32, elemsPerChain: 4, numBeams: 2, sharedSpoilX: 0, sharedSpoilY: 0, beams: beams };
+            };
+
+            const steerState = [];
+            for (let i = 0; i < 8; i++) steerState.push({ cTh: 0, cPh: 0, tTh: 0, tPh: 0 });
+
+            const state = {
+                nArrays: 1, desFreq: 11.7, txFreq: 11.7, waveform: 0, bw: 500, subBw: 15,
+                brightness: 1.5, dynRange: 0.5, vizMode: 1, // 1 = Per-Beam Distinct Colors enabled
+                isPlaying: false, time: 0, moveSpeed: 0.002,
+                activeSteerBeam: 0, steerings: steerState,
+                arrayConfigs: [defaultArrayConfig(), defaultArrayConfig(), defaultArrayConfig()],
+                panels: [], keys: { w: false, a: false, s: false, d: false }
+            };
+
+            // =====================================================
+            // PHASE SPOIL FACTOR CALCULATOR
+            // =====================================================
+            function computeSpoilFactor(N, spoil) {
+                let iN = Math.min(Math.round(N), 128);
+                if (iN <= 1 || spoil < 0.001) return 1.0;
+                let re = 0, im = 0;
+                for (let n = 0; n < iN; n++) {
+                    let norm = 2 * n / (iN - 1) - 1;
+                    let phase = spoil * Math.PI * norm * norm;
+                    re += Math.cos(phase);
+                    im += Math.sin(phase);
+                }
+                return Math.sqrt(re * re + im * im) / iN;
+            }
+
+            // =====================================================
+            // EXACT MULTI-BEAM PHYSICS GAIN CALCULATOR 
+            // =====================================================
+            function calculateActiveBeamGain(cfg, st) {
+                const b = st.activeSteerBeam;
+                if (b >= cfg.numBeams) return "N/A";
+
+                const beam = cfg.beams[b];
+                const steer = st.steerings[b];
+                const N = Math.max(2, cfg.gridSize);
+
+                // Allow manually turning off outer elements symmetrically to perfectly match DPCA gains
+                let rawNx = Math.max(0, N - 2 * Math.abs(beam.pcX) - 2 * (beam.offX || 0));
+                let rawNy = Math.max(0, N - 2 * Math.abs(beam.pcY) - 2 * (beam.offY || 0));
+
+                let effNx = rawNx;
+                let effNy = rawNy;
+                let Nel = 1;
+
+                // STRICT HYBRID ENFORCEMENT TO PREVENT FRACTIONAL SINC BREAKDOWNS
+                if (cfg.type === 'phased_hyb') {
+                    Nel = Math.max(1, cfg.elemsPerChain);
+                    effNx = Math.floor(rawNx / Nel) * Nel;
+                    effNy = Math.floor(rawNy / Nel) * Nel;
+                }
+
+                if (effNx <= 0 || effNy <= 0) return "OFFLINE";
+
+                let D_base = Math.PI * effNx * effNy * Math.pow(st.txFreq / st.desFreq, 2) * Math.max(0.01, Math.cos(steer.tTh));
+                if (D_base <= 0) return "OFFLINE";
+
+                let eff = 1.0;
+                if (st.waveform > 0 && st.bw > 0) {
+                    let u0 = Math.sin(steer.tTh) * Math.cos(steer.tPh);
+                    let v0 = Math.sin(steer.tTh) * Math.sin(steer.tPh);
+                    let wSum = 0; let pSum = 0;
+
+                    for (let j = 0; j <= 10; j++) {
+                        let t = (j / 10.0) - 0.5;
+                        let f = st.txFreq + t * (st.bw / 1000.0);
+
+                        let w = 1.0;
+                        if (st.waveform === 1) {
+                            let x = t * 4.0; w = (Math.abs(x) < 0.001) ? 1.0 : Math.pow(Math.sin(Math.PI * x) / (Math.PI * x), 2);
+                        } else if (st.waveform === 2) {
+                            w = 0.85 + 0.15 * Math.cos(t * st.bw * 1000.0 / Math.max(0.000001, st.subBw) * 2.0 * Math.PI);
+                        } else if (st.waveform === 3) {
+                            let abs_t = Math.abs(t); w = (abs_t <= 0.35) ? 1.0 : ((abs_t >= 0.5) ? 0.0 : 0.5 * (1.0 + Math.cos(Math.PI * (abs_t - 0.35) / 0.15)));
+                        } else if (st.waveform === 4) {
+                            w = 0.95 + 0.05 * Math.cos(t * st.bw * 1000.0 / Math.max(0.000001, st.subBw) * 2.0 * Math.PI);
+                        }
+
+                        let c = 0.299792458;
+                        let k = 2.0 * Math.PI * f / c;
+                        let k_c = 2.0 * Math.PI * st.txFreq / c;
+                        let d = (c / st.desFreq) * 0.5;
+
+                        let getAF = (psi, n) => {
+                            if (n <= 1) return 1.0;
+                            let denom = n * Math.sin(psi * 0.5);
+                            return (Math.abs(denom) < 0.00001) ? 1.0 : Math.sin(n * psi * 0.5) / denom;
+                        };
+
+                        let mag = 1.0;
+                        if (cfg.type === 'phased_ana') {
+                            let psi_x = k * d * u0 - k_c * d * u0;
+                            let psi_y = k * d * v0 - k_c * d * v0;
+                            mag = Math.abs(getAF(psi_x, effNx) * getAF(psi_y, effNy));
+                        } else if (cfg.type === 'phased_hyb') {
+                            let psi_el_x = k * d * u0 - k_c * d * u0;
+                            let psi_el_y = k * d * v0 - k_c * d * v0;
+                            mag = Math.abs(getAF(psi_el_x, Nel) * getAF(psi_el_y, Nel));
+                        }
+
+                        pSum += (mag * mag) * w;
+                        wSum += w;
+                    }
+                    eff *= pSum / Math.max(0.0001, wSum);
+                }
+
+                if (!beam.pcCompensate && (beam.pcX !== 0 || beam.pcY !== 0)) eff *= 0.65;
+
+                // Phase spoil reduces peak gain via quadratic phase taper
+                let spoilX = beam.spoilX || 0;
+                let spoilY = beam.spoilY || 0;
+                let sfX = computeSpoilFactor(effNx, spoilX);
+                let sfY = computeSpoilFactor(effNy, spoilY);
+                eff *= sfX * sfX * sfY * sfY;
+
+                let gain_dBi = 10 * Math.log10(Math.max(1e-5, D_base * eff));
+                return `B${b + 1}: ` + gain_dBi.toFixed(1) + " dBi";
+            }
+
+            function updateGains() {
+                state.panels.forEach((p, i) => {
+                    const el = document.getElementById(`gain-disp-${i}`);
+                    if (el) el.innerText = calculateActiveBeamGain(p.config, state);
+                });
+            }
+
+            function updateStatusLine() {
+                const b = state.activeSteerBeam;
+                const el = document.getElementById('status-line');
+                if (el) {
+                    el.innerText = `Target: Beam ${b + 1} | θ: ${(state.steerings[b].tTh * 180 / Math.PI).toFixed(1)}°, φ: ${(state.steerings[b].tPh * 180 / Math.PI).toFixed(1)}°`;
+                    el.style.borderColor = BEAM_COLORS_HEX[b];
+                    el.style.color = BEAM_COLORS_HEX[b];
+                }
+            }
+
+            // =====================================================
+            // UI & HARDWARE LOGIC HELPERS
+            // =====================================================
+            function syncInput(slId, inpId, stateObj, stateKey, callback) {
+                const sl = document.getElementById(slId);
+                const inp = document.getElementById(inpId);
+                if (!sl || !inp) return;
+
+                sl.addEventListener('input', (e) => {
+                    let val = parseFloat(e.target.value);
+                    inp.value = val; stateObj[stateKey] = val;
+                    if (callback) callback();
+                });
+
+                inp.addEventListener('change', (e) => {
+                    let val = parseFloat(e.target.value);
+                    if (isNaN(val)) { inp.value = sl.value; return; }
+
+                    stateObj[stateKey] = val; // Physics Engine calculates unbounded variables!
+
+                    if (val >= parseFloat(sl.min) && val <= parseFloat(sl.max)) sl.value = val;
+                    else if (val < parseFloat(sl.min)) sl.value = sl.min;
+                    else if (val > parseFloat(sl.max)) sl.value = sl.max;
+
+                    if (callback) callback();
+                });
+            }
+
+            function enforceHybridSnap(cfg, sourceIdx) {
+                if (cfg.type === 'phased_hyb') {
+                    const nel = Math.max(1, cfg.elemsPerChain);
+                    cfg.gridSize = Math.max(nel, Math.round(cfg.gridSize / nel) * nel);
+                    const sl = document.getElementById(`sl-grid-${sourceIdx}`);
+                    const inp = document.getElementById(`inp-grid-${sourceIdx}`);
+                    if (sl) sl.value = cfg.gridSize;
+                    if (inp) inp.value = cfg.gridSize;
+
+                    for (let b = 0; b < cfg.numBeams; b++) {
+                        cfg.beams[b].pcX = Math.round(cfg.beams[b].pcX / nel) * nel;
+                        cfg.beams[b].pcY = Math.round(cfg.beams[b].pcY / nel) * nel;
+                        cfg.beams[b].offX = Math.round(Math.max(0, cfg.beams[b].offX || 0) / nel) * nel;
+                        cfg.beams[b].offY = Math.round(Math.max(0, cfg.beams[b].offY || 0) / nel) * nel;
+
+                        const inpX = document.getElementById(`inp-b${b}-x-${sourceIdx}`);
+                        const inpY = document.getElementById(`inp-b${b}-y-${sourceIdx}`);
+                        const inpOffX = document.getElementById(`inp-b${b}-offx-${sourceIdx}`);
+                        const inpOffY = document.getElementById(`inp-b${b}-offy-${sourceIdx}`);
+
+                        if (inpX) inpX.value = cfg.beams[b].pcX;
+                        if (inpY) inpY.value = cfg.beams[b].pcY;
+                        if (inpOffX) inpOffX.value = cfg.beams[b].offX;
+                        if (inpOffY) inpOffY.value = cfg.beams[b].offY;
+                    }
+                }
+            }
+
+            function updateSteeringUI() {
+                let maxB = 1;
+                state.panels.forEach(p => maxB = Math.max(maxB, p.config.numBeams));
+                if (state.activeSteerBeam >= maxB) state.activeSteerBeam = 0;
+
+                const c = document.getElementById('steer-beam-btns');
+                if (!c) return;
+                c.innerHTML = '';
+                for (let i = 0; i < maxB; i++) {
+                    const btn = document.createElement('button');
+                    btn.className = `w-7 h-7 rounded flex items-center justify-center border-2 ${state.activeSteerBeam === i ? 'border-white shadow-lg shadow-white/30' : 'border-transparent opacity-40 hover:opacity-100'} transition-all`;
+                    btn.innerText = i + 1;
+                    btn.style.backgroundColor = BEAM_COLORS_HEX[i];
+                    btn.style.color = (i === 3 || i === 5 || i === 7) ? '#000' : '#fff';
+                    btn.style.fontWeight = 'bold';
+                    btn.onclick = () => { state.activeSteerBeam = i; updateSteeringUI(); };
+                    c.appendChild(btn);
+                }
+                updateStatusLine();
+                updateGains();
+            }
+
+            function buildGlobalUI() {
+                syncInput('sl-des-freq', 'inp-des-freq', state, 'desFreq', () => { updateUniforms(); updateGains(); });
+                syncInput('sl-tx-freq', 'inp-tx-freq', state, 'txFreq', () => { updateUniforms(); updateGlobalUI(); updateGains(); });
+                syncInput('sl-bw', 'inp-bw', state, 'bw', () => { updateUniforms(); updateGlobalUI(); updateGains(); });
+                syncInput('sl-sub-bw', 'inp-sub-bw', state, 'subBw', () => { updateUniforms(); updateGains(); });
+                syncInput('sl-bright', 'inp-bright', state, 'brightness', () => { updateUniforms(); });
+                syncInput('sl-dyn', 'inp-dyn', state, 'dynRange', () => { updateUniforms(); });
+
+                document.getElementById('sel-waveform').onchange = e => {
+                    state.waveform = parseInt(e.target.value);
+                    document.getElementById('bw-controls').style.display = (state.waveform > 0) ? 'block' : 'none';
+                    document.getElementById('ofdm-controls').style.display = (state.waveform === 2 || state.waveform === 4) ? 'flex' : 'none';
+                    updateUniforms(); updateGlobalUI(); updateGains();
+                };
+
+                document.getElementById('sel-viz-mode').onchange = e => {
+                    state.vizMode = parseInt(e.target.value);
+                    updateUniforms(); updateGlobalUI(); updateArrayGeometry();
+                };
+            }
+
+            window.setArrayCount = function (n) {
+                state.nArrays = n;
+                document.querySelectorAll('.array-tab').forEach(btn => btn.classList.remove('active'));
+                document.getElementById(`btn-arr-${n}`).classList.add('active');
+                buildArrayControlsUI(); rebuildPanels(); updateSteeringUI();
+            };
+
+            function renderBeamsList(cfg, i) {
+                const container = document.getElementById(`beams-list-${i}`);
+                if (!container) return;
+                container.innerHTML = '';
+                for (let b = 0; b < cfg.numBeams; b++) {
+                    const cHex = BEAM_COLORS_HEX[b];
+                    container.innerHTML += `
+                        <div class="flex flex-col bg-black/40 p-1.5 rounded border-l-[3px] mb-1" style="border-color:${cHex}">
+                            <div class="flex items-center justify-between mb-1">
+                                <span style="color:${cHex}; font-weight:bold; font-size:10px;">Beam ${b + 1}</span>
+                                <label class="flex items-center space-x-1 cursor-pointer">
+                                    <input type="checkbox" id="chk-comp-${i}-${b}" ${cfg.beams[b].pcCompensate ? 'checked' : ''} class="w-2.5 h-2.5">
+                                    <span class="text-[8px] text-green-400 font-bold" title="True Time Delay">TTD</span>
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-2 gap-x-1 gap-y-1 text-[9px]">
+                                <div class="flex justify-between items-center text-gray-400">
+                                    <span class="font-bold">PC X</span>
+                                    <input type="number" id="inp-b${b}-x-${i}" value="${cfg.beams[b].pcX}" class="w-8 bg-black/50 border border-gray-600 rounded px-0.5 text-center text-white">
+                                </div>
+                                <div class="flex justify-between items-center text-red-400" title="Turn off elements symmetrically">
+                                    <span class="font-bold">Off X</span>
+                                    <input type="number" id="inp-b${b}-offx-${i}" value="${cfg.beams[b].offX || 0}" min="0" class="w-8 bg-black/50 border border-red-800 rounded px-0.5 text-center text-red-100">
+                                </div>
+                                <div class="flex justify-between items-center text-gray-400">
+                                    <span class="font-bold">PC Y</span>
+                                    <input type="number" id="inp-b${b}-y-${i}" value="${cfg.beams[b].pcY}" class="w-8 bg-black/50 border border-gray-600 rounded px-0.5 text-center text-white">
+                                </div>
+                                <div class="flex justify-between items-center text-red-400" title="Turn off elements symmetrically">
+                                    <span class="font-bold">Off Y</span>
+                                    <input type="number" id="inp-b${b}-offy-${i}" value="${cfg.beams[b].offY || 0}" min="0" class="w-8 bg-black/50 border border-red-800 rounded px-0.5 text-center text-red-100">
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1 mt-1 text-[9px]">
+                                <span class="text-orange-400 font-bold" style="min-width:28px" title="Phase Spoil X (π rad)">Sp X</span>
+                                <input type="range" id="sl-b${b}-spoilx-${i}" min="0" max="3" step="0.05" value="${cfg.beams[b].spoilX || 0}" class="flex-1">
+                                <input type="number" id="inp-b${b}-spoilx-${i}" value="${cfg.beams[b].spoilX || 0}" step="0.05" class="w-10 bg-black/50 border border-orange-800 rounded px-0.5 text-center text-orange-100">
+                            </div>
+                            <div class="flex items-center gap-1 text-[9px]">
+                                <span class="text-orange-400 font-bold" style="min-width:28px" title="Phase Spoil Y (π rad)">Sp Y</span>
+                                <input type="range" id="sl-b${b}-spoily-${i}" min="0" max="3" step="0.05" value="${cfg.beams[b].spoilY || 0}" class="flex-1">
+                                <input type="number" id="inp-b${b}-spoily-${i}" value="${cfg.beams[b].spoilY || 0}" step="0.05" class="w-10 bg-black/50 border border-orange-800 rounded px-0.5 text-center text-orange-100">
+                            </div>
+                        </div>
+                    `;
+                }
+
+                for (let b = 0; b < cfg.numBeams; b++) {
+                    document.getElementById(`inp-b${b}-x-${i}`).addEventListener('change', e => {
+                        cfg.beams[b].pcX = parseFloat(e.target.value) || 0;
+                        enforceHybridSnap(cfg, i);
+                        updateArrayGeometry(); updateUniforms(); updateGains();
+                    });
+                    document.getElementById(`inp-b${b}-y-${i}`).addEventListener('change', e => {
+                        cfg.beams[b].pcY = parseFloat(e.target.value) || 0;
+                        enforceHybridSnap(cfg, i);
+                        updateArrayGeometry(); updateUniforms(); updateGains();
+                    });
+                    document.getElementById(`inp-b${b}-offx-${i}`).addEventListener('change', e => {
+                        cfg.beams[b].offX = Math.max(0, parseFloat(e.target.value) || 0);
+                        enforceHybridSnap(cfg, i);
+                        updateArrayGeometry(); updateUniforms(); updateGains();
+                    });
+                    document.getElementById(`inp-b${b}-offy-${i}`).addEventListener('change', e => {
+                        cfg.beams[b].offY = Math.max(0, parseFloat(e.target.value) || 0);
+                        enforceHybridSnap(cfg, i);
+                        updateArrayGeometry(); updateUniforms(); updateGains();
+                    });
+                    document.getElementById(`chk-comp-${i}-${b}`).addEventListener('change', e => {
+                        cfg.beams[b].pcCompensate = e.target.checked;
+                        updateUniforms(); updateGains();
+                    });
+                    {
+                        const slSx = document.getElementById(`sl-b${b}-spoilx-${i}`);
+                        const inpSx = document.getElementById(`inp-b${b}-spoilx-${i}`);
+                        const slSy = document.getElementById(`sl-b${b}-spoily-${i}`);
+                        const inpSy = document.getElementById(`inp-b${b}-spoily-${i}`);
+                        if (slSx && inpSx) {
+                            slSx.addEventListener('input', e => { let v = parseFloat(e.target.value); inpSx.value = v; cfg.beams[b].spoilX = v; updateUniforms(); updateGains(); });
+                            inpSx.addEventListener('change', e => { let v = Math.max(0, parseFloat(e.target.value) || 0); e.target.value = v; slSx.value = Math.min(v, 3); cfg.beams[b].spoilX = v; updateUniforms(); updateGains(); });
+                        }
+                        if (slSy && inpSy) {
+                            slSy.addEventListener('input', e => { let v = parseFloat(e.target.value); inpSy.value = v; cfg.beams[b].spoilY = v; updateUniforms(); updateGains(); });
+                            inpSy.addEventListener('change', e => { let v = Math.max(0, parseFloat(e.target.value) || 0); e.target.value = v; slSy.value = Math.min(v, 3); cfg.beams[b].spoilY = v; updateUniforms(); updateGains(); });
+                        }
+                    }
+                }
+            }
+
+            function buildArrayControlsUI() {
+                const container = document.getElementById('array-controls');
+                container.innerHTML = '';
+
+                for (let i = 0; i < state.nArrays; i++) {
+                    const cfg = state.arrayConfigs[i];
+                    const section = document.createElement('div');
+                    section.className = 'space-y-2 mb-3 border-l-2 border-blue-500 pl-3 bg-blue-900/10 p-2 rounded';
+
+                    section.innerHTML = `
+                        <div class="flex justify-between items-center mb-1 border-b border-blue-900/50 pb-1">
+                            <span class="font-bold text-blue-300">Panel ${i + 1} Configuration</span>
+                            <span class="text-green-400 font-bold bg-green-900/40 px-1.5 py-0.5 rounded border border-green-700 text-[10px]" id="gain-disp-${i}">-- dBi</span>
+                        </div>
+                        
+                        <select id="sel-type-${i}" class="w-full bg-blue-900/40 border border-blue-700 rounded px-2 py-1.5 text-white text-[10px] outline-none mb-1 cursor-pointer">
+                            <option value="phased_dig" ${cfg.type === 'phased_dig' ? 'selected' : ''}>Digital (Pure TTD)</option>
+                            <option value="phased_ana" ${cfg.type === 'phased_ana' ? 'selected' : ''}>Analog (Phase Shifters)</option>
+                            <option value="phased_hyb" ${cfg.type === 'phased_hyb' ? 'selected' : ''}>Hybrid Sub-array (Mixed)</option>
+                        </select>
+                        
+                        <div class="flex flex-col">
+                            <div class="flex justify-between text-[10px] mb-1"><span class="text-gray-400">Total Grid Elements (NxN)</span></div>
+                            <div class="flex space-x-2 items-center">
+                                <input type="range" id="sl-grid-${i}" min="2" max="64" value="${cfg.gridSize}" step="2" class="flex-1 w-full">
+                                <input type="number" id="inp-grid-${i}" value="${cfg.gridSize}" class="w-16">
+                            </div>
+                        </div>
+                        
+                        <div id="hyb-sec-${i}" class="flex flex-col mt-1" style="display:${cfg.type === 'phased_hyb' ? 'flex' : 'none'}">
+                            <div class="flex justify-between text-[10px] mb-1"><span class="text-gray-400">Elements per RF Chain</span></div>
+                            <div class="flex space-x-2 items-center">
+                                <input type="range" id="sl-chain-${i}" min="1" max="64" value="${cfg.elemsPerChain}" step="1" class="flex-1 w-full">
+                                <input type="number" id="inp-chain-${i}" value="${cfg.elemsPerChain}" class="w-16">
+                            </div>
+                        </div>
+                        
+                        <div class="mt-2 pt-2 border-t border-blue-800/50 space-y-2">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[10px] text-cyan-400 font-bold">Simultaneous Beams</span>
+                                <input type="number" id="inp-nbeams-${i}" min="1" max="8" value="${cfg.numBeams}" class="w-12 text-xs bg-black/40 border border-cyan-700 rounded text-cyan-300 text-center outline-none">
+                            </div>
+                            
+                            <div id="beams-list-${i}" class="grid grid-cols-2 gap-1.5 mb-1 max-h-[170px] overflow-y-auto pr-1"></div>
+                        </div>
+                    `;
+                    container.appendChild(section);
+
+                    document.getElementById(`sel-type-${i}`).onchange = e => {
+                        cfg.type = e.target.value;
+                        document.getElementById(`hyb-sec-${i}`).style.display = cfg.type === 'phased_hyb' ? 'flex' : 'none';
+                        enforceHybridSnap(cfg, i); renderBeamsList(cfg, i); rebuildPanels();
+                    };
+
+                    syncInput(`sl-grid-${i}`, `inp-grid-${i}`, cfg, 'gridSize', () => { enforceHybridSnap(cfg, i); rebuildPanels(); });
+                    syncInput(`sl-chain-${i}`, `inp-chain-${i}`, cfg, 'elemsPerChain', () => { enforceHybridSnap(cfg, i); rebuildPanels(); });
+
+                    document.getElementById(`inp-nbeams-${i}`).addEventListener('change', e => {
+                        let val = parseInt(e.target.value);
+                        if (isNaN(val) || val < 1) val = 1; if (val > 8) val = 8;
+                        e.target.value = val; cfg.numBeams = val;
+                        enforceHybridSnap(cfg, i);
+                        renderBeamsList(cfg, i); updateArrayGeometry(); updateUniforms(); updateSteeringUI();
+                    });
+
+                    renderBeamsList(cfg, i);
+                }
+                updateSteeringUI();
+            }
+
+            // =====================================================
+            // THREE.JS SETUP
+            // =====================================================
+            const container = document.getElementById('canvas-container');
+            const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.autoClear = false;
+            container.appendChild(renderer.domElement);
+
+            const masterCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 500);
+            masterCamera.position.set(8, 10, 8);
+            const controls = new THREE.OrbitControls(masterCamera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05; controls.target.set(0, 0, 0);
+
+            // =====================================================
+            // MULTI-BEAM SHADERS (SPATIAL & COLOR ENGINE)
+            // =====================================================
+            const vertexShader = `
+                varying vec3 vPos;
+                uniform float u_radius;
+                uniform float u_brightness;
+                void main() {
+                    vPos = position; 
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    float scaleFactor = u_radius * 0.5; 
+                    gl_PointSize = (14.0 * scaleFactor / -mvPosition.z) * sqrt(u_brightness);
+                    gl_PointSize = max(gl_PointSize, 2.0);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `;
+
+            const fragmentShader = `
+                uniform float u_time;
+                uniform float u_arraySize;
+                uniform int u_type;
+                uniform float u_hyb_nel;
+                
+                uniform float u_desFreq;
+                uniform float u_txFreq;
+                uniform float u_bw; 
+                uniform float u_subBw; 
+                uniform int u_waveform;
+                
+                uniform int u_numBeams;
+                uniform vec2 u_steerings[8]; // Per-beam steering logic
+                uniform vec2 u_pcShifts[8]; // Math logic shift
+                uniform vec2 u_edgeOffs[8]; // Edges turned off (crop padding)
+                uniform vec2 u_visualShifts[8]; // Rendering spatial shift
+                uniform int u_pcComps[8];
+                uniform vec3 u_beamColors[8];
+                uniform vec2 u_spoils[8];
+                
+                uniform float u_radius;
+                uniform int u_vizMode; // 0=Heatmap, 1=Colors, 2=RxSquint
+                uniform float u_brightness;
+                uniform float u_dynRange;
+
+                varying vec3 vPos;
+                #define PI 3.14159265359
+
+                vec3 heatMap(float v) {
+                    float value = clamp(v, 0.0, 1.0);
+                    if (value < 0.2) return mix(vec3(0.0), vec3(0.0, 0.2, 0.8), value * 5.0);
+                    if (value < 0.4) return mix(vec3(0.0, 0.2, 0.8), vec3(0.0, 1.0, 1.0), (value - 0.2) * 5.0);
+                    if (value < 0.7) return mix(vec3(0.0, 1.0, 1.0), vec3(1.0, 1.0, 0.0), (value - 0.4) * 3.33);
+                    return mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), (value - 0.7) * 3.33);
+                }
+                
+                float getAF(float psi, float N) {
+                    if (N <= 1.0) return 1.0;
+                    float denom = N * sin(psi * 0.5);
+                    if(abs(denom) < 0.00001) denom = 0.00001 * sign(denom + 0.00001);
+                    return sin(N * psi * 0.5) / denom;
+                }
+
+                float getWeight(float t) {
+                    if (u_waveform == 1) { 
+                        float x = t * 4.0; return (abs(x) < 0.001) ? 1.0 : pow(sin(PI * x) / (PI * x), 2.0);
+                    } else if (u_waveform == 2) { 
+                        return 0.85 + 0.15 * cos(t * u_bw * 1000.0 / max(0.000001, u_subBw) * 2.0 * PI);
+                    } else if (u_waveform == 3) { 
+                        float abs_t = abs(t); return (abs_t <= 0.35) ? 1.0 : (abs_t >= 0.5 ? 0.0 : 0.5 * (1.0 + cos(PI * (abs_t - 0.35) / 0.15)));
+                    } else if (u_waveform == 4) { 
+                        return 0.95 + 0.05 * cos(t * u_bw * 1000.0 / max(0.000001, u_subBw) * 2.0 * PI);
+                    }
+                    return 1.0; 
+                }
+
+                float computeAF1D_spoil(float k, float k_c, float d, float u_dir, float u0_dir, float N, float spoil, float Nel) {
+                    int iN = int(min(N, 64.0));
+                    if (iN <= 0) return 0.0;
+                    if (iN == 1) return 1.0;
+                    float fN = float(iN);
+                    float re = 0.0;
+                    float im = 0.0;
+                    for (int n = 0; n < 64; n++) {
+                        if (n >= iN) break;
+                        float fn = float(n);
+                        float norm = 2.0 * fn / (fN - 1.0) - 1.0;
+                        float sp = spoil * PI * norm * norm;
+                        float phase;
+                        if (u_type == 1) {
+                            phase = k * d * fn * (u_dir - u0_dir) + sp;
+                        } else if (u_type == 2) {
+                            phase = k * d * fn * u_dir - k_c * d * fn * u0_dir + sp;
+                        } else {
+                            float elem = mod(fn, Nel);
+                            float sub = floor(fn / Nel);
+                            phase = k * d * fn * u_dir - k_c * d * elem * u0_dir - k * d * sub * Nel * u0_dir + sp;
+                        }
+                        re += cos(phase);
+                        im += sin(phase);
+                    }
+                    return sqrt(re * re + im * im) / fN;
+                }
+
+                float computeBeamPattern(float freq, int b_idx) {
+                    vec2 visShift = u_visualShifts[b_idx];
+                    vec2 mathShift = u_pcShifts[b_idx];
+                    vec2 edgeOff = u_edgeOffs[b_idx];
+                    vec2 steer = u_steerings[b_idx];
+                    int comp = u_pcComps[b_idx];
+                    vec2 spoil = u_spoils[b_idx];
+                    
+                    vec3 localPos = vPos - vec3(visShift.x, 0.0, visShift.y);
+                    float r_local = length(localPos);
+                    if (r_local < 0.001) return 1.0;
+
+                    float theta = acos(clamp(localPos.y / r_local, -1.0, 1.0));
+                    float phi = atan(localPos.z, localPos.x);
+
+                    float u = sin(theta) * cos(phi);
+                    float v = sin(theta) * sin(phi);
+                    float u0 = sin(steer.x) * cos(steer.y);
+                    float v0 = sin(steer.x) * sin(steer.y);
+
+                    float c = 0.299792458; 
+                    float k = 2.0 * PI * freq / c;
+                    float k_c = 2.0 * PI * u_txFreq / c;
+                    float d = (c / u_desFreq) * 0.5; 
+                    
+                    float Nx = floor(max(0.0, u_arraySize - 2.0 * abs(mathShift.x) - 2.0 * edgeOff.x) + 0.5);
+                    float Ny = floor(max(0.0, u_arraySize - 2.0 * abs(mathShift.y) - 2.0 * edgeOff.y) + 0.5);
+
+                    if (Nx <= 0.0 || Ny <= 0.0) return 0.0;
+
+                    float Nel = floor(max(1.0, u_hyb_nel) + 0.5);
+
+                    // Snap to tile multiples for hybrid
+                    if (u_type == 3) {
+                        Nx = floor(Nx / Nel) * Nel;
+                        Ny = floor(Ny / Nel) * Nel;
+                        if (Nx <= 0.0 || Ny <= 0.0) return 0.0;
+                    }
+                    
+                    float AF = 1.0;
+
+                    // When spoil is active, use element-by-element coherent sum
+                    if (spoil.x > 0.001 || spoil.y > 0.001) {
+                        float afx = computeAF1D_spoil(k, k_c, d, u, u0, Nx, spoil.x, Nel);
+                        float afy = computeAF1D_spoil(k, k_c, d, v, v0, Ny, spoil.y, Nel);
+                        AF = afx * afy;
+                    }
+                    // Fast closed-form sinc when no spoil
+                    else if (u_type == 1) { 
+                        float psi_x = k * d * (u - u0);
+                        float psi_y = k * d * (v - v0);
+                        AF = abs(getAF(psi_x, Nx) * getAF(psi_y, Ny));
+                    } 
+                    else if (u_type == 2) { 
+                        float psi_x = k * d * u - k_c * d * u0;
+                        float psi_y = k * d * v - k_c * d * v0;
+                        AF = abs(getAF(psi_x, Nx) * getAF(psi_y, Ny));
+                    } 
+                    else if (u_type == 3) { 
+                        float psi_el_x = k * d * u - k_c * d * u0;
+                        float psi_el_y = k * d * v - k_c * d * v0;
+                        float af_el = abs(getAF(psi_el_x, Nel) * getAF(psi_el_y, Nel));
+                        
+                        float subNx = floor(max(1.0, Nx / Nel) + 0.5);
+                        float subNy = floor(max(1.0, Ny / Nel) + 0.5);
+                        float D_sub = Nel * d;
+                        float psi_sub_x = k * D_sub * (u - u0);
+                        float psi_sub_y = k * D_sub * (v - v0);
+                        float af_sub = abs(getAF(psi_sub_x, subNx) * getAF(psi_sub_y, subNy));
+                        
+                        AF = af_el * af_sub;
+                    }
+
+                    if (comp == 0 && (mathShift.x != 0.0 || mathShift.y != 0.0)) AF *= 0.65; 
+                    return AF;
+                }
+
+                void main() {
+                    float r = length(vPos);
+                    if (r > u_radius || r < 0.1) discard;
+
+                    vec3 finalColor = vec3(0.0);
+                    float finalIntensity = 0.0;
+                    float k_vis = 4.0 * PI * (u_txFreq / u_desFreq);
+
+                    if (u_vizMode == 2 && u_waveform > 0 && u_bw > 0.0001) {
+                        float fL = u_txFreq - 0.5 * u_bw;
+                        float fC = u_txFreq;
+                        float fH = u_txFreq + 0.5 * u_bw;
+                        
+                        vec3 rgbAcc = vec3(0.0);
+                        for(int b = 0; b < 8; b++) {
+                            if (b >= u_numBeams) break;
+                            rgbAcc.r += pow(computeBeamPattern(fL, b), 2.0);
+                            rgbAcc.g += pow(computeBeamPattern(fC, b), 2.0);
+                            rgbAcc.b += pow(computeBeamPattern(fH, b), 2.0);
+                        }
+                        rgbAcc /= float(u_numBeams);
+                        
+                        float visR = pow(rgbAcc.r, u_dynRange);
+                        float visG = pow(rgbAcc.g, u_dynRange);
+                        float visB = pow(rgbAcc.b, u_dynRange);
+                        
+                        finalColor = vec3(visR, visG * 0.8, visB);
+                        finalIntensity = max(visR, max(visG, visB));
+                    } 
+                    else if (u_vizMode == 1) { // Distinct Beam Colors
+                        vec3 colorAcc = vec3(0.0);
+                        float maxPower = 0.0;
+                        
+                        for(int b = 0; b < 8; b++) {
+                            if (b >= u_numBeams) break;
+                            
+                            float pSum = 0.0; float wSum = 0.0;
+                            if (u_bw <= 0.0001 || u_waveform == 0) {
+                                float af = computeBeamPattern(u_txFreq, b);
+                                pSum = af * af; wSum = 1.0;
+                            } else {
+                                for(int i = 0; i <= 6; i++) {
+                                    float t = (float(i) / 6.0) - 0.5;
+                                    float w = getWeight(t);
+                                    float af = computeBeamPattern(u_txFreq + t * u_bw, b);
+                                    pSum += (af * af) * w; wSum += w;
+                                }
+                            }
+                            float visibleAF = pow(sqrt(pSum / max(0.0001, wSum)), u_dynRange);
+                            
+                            vec3 origin_b = vec3(u_visualShifts[b].x, 0.0, u_visualShifts[b].y);
+                            float r_b = length(vPos - origin_b);
+                            float wave = sin(k_vis * r_b - u_time * 10.0);
+                            
+                            float b_amp = visibleAF * (wave * 0.5 + 0.5);
+                            colorAcc += u_beamColors[b] * b_amp;
+                            maxPower = max(maxPower, b_amp);
+                        }
+                        
+                        if (maxPower > 0.001) {
+                            finalColor = clamp(colorAcc / maxPower, 0.0, 1.0); // Keep hues bright!
+                        }
+                        finalIntensity = maxPower;
+                    } 
+                    else { // Total Power Heatmap
+                        float sumPower = 0.0;
+                        for(int b = 0; b < 8; b++) {
+                            if (b >= u_numBeams) break;
+                            
+                            float pSum = 0.0; float wSum = 0.0;
+                            if (u_bw <= 0.0001 || u_waveform == 0) {
+                                float af = computeBeamPattern(u_txFreq, b);
+                                pSum = af * af; wSum = 1.0;
+                            } else {
+                                for(int i = 0; i <= 6; i++) {
+                                    float t = (float(i) / 6.0) - 0.5;
+                                    float w = getWeight(t);
+                                    float af = computeBeamPattern(u_txFreq + t * u_bw, b);
+                                    pSum += (af * af) * w; wSum += w;
+                                }
+                            }
+                            
+                            float visibleAF = pow(sqrt(pSum / max(0.0001, wSum)), u_dynRange);
+                            vec3 origin_b = vec3(u_visualShifts[b].x, 0.0, u_visualShifts[b].y);
+                            float r_b = length(vPos - origin_b);
+                            float wave = sin(k_vis * r_b - u_time * 10.0);
+                            
+                            sumPower += visibleAF * (wave * 0.5 + 0.5);
+                        }
+                        finalIntensity = sumPower / float(u_numBeams);
+                        finalColor = heatMap(finalIntensity); 
+                    }
+
+                    float fade = 1.0 - smoothstep(u_radius * 0.9, u_radius, r);
+                    float alpha = finalIntensity * (0.05 + u_radius*0.005) * fade * u_brightness;
+                    if(finalIntensity < 0.05) alpha *= 0.1;
+
+                    gl_FragColor = vec4(finalColor, alpha);
+                }
+            `;
+
+            // =====================================================
+            // SCENE & PANEL MANAGEMENT
+            // =====================================================
+            function buildPanel(cfg) {
+                const rawN = Math.max(2, cfg.gridSize);
+                const N = (cfg.type === 'phased_hyb') ? Math.max(cfg.elemsPerChain, Math.round(rawN / cfg.elemsPerChain) * cfg.elemsPerChain) : rawN;
+                const renderN = Math.min(N, 128);
+                const sz = renderN * VISUAL_SPACING;
+                const domeRadius = Math.max(3.0, sz * 1.5);
+
+                const meshGroup = new THREE.Group();
+                meshGroup.add(new THREE.Mesh(new THREE.BoxGeometry(sz, 0.1, sz), new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 })));
+
+                const count = renderN * renderN;
+                const elemGeo = new THREE.CylinderGeometry(VISUAL_SPACING * 0.35, VISUAL_SPACING * 0.35, 0.08, 12);
+                elemGeo.rotateX(Math.PI / 2);
+                const imesh = new THREE.InstancedMesh(elemGeo, new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.6 }), count);
+                imesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
+
+                const dummy = new THREE.Object3D();
+                const offset = (renderN - 1) * VISUAL_SPACING / 2;
+                let k = 0;
+                for (let i = 0; i < renderN; i++) {
+                    for (let j = 0; j < renderN; j++) {
+                        dummy.position.set(i * VISUAL_SPACING - offset, 0.05, j * VISUAL_SPACING - offset);
+                        dummy.updateMatrix();
+                        imesh.setMatrixAt(k++, dummy.matrix);
+                    }
+                }
+                meshGroup.add(imesh);
+
+                const geom = new THREE.BufferGeometry();
+                const ptCount = Math.floor(2000000 / state.nArrays);
+                const pos = new Float32Array(ptCount * 3);
+                for (let i = 0; i < ptCount; i++) {
+                    const phi = Math.random() * Math.PI * 2;
+                    const costheta = Math.random();
+                    const theta = Math.acos(costheta);
+                    const r = domeRadius * Math.cbrt(Math.random());
+                    pos[i * 3] = r * Math.sin(theta) * Math.cos(phi);
+                    pos[i * 3 + 1] = r * costheta;
+                    pos[i * 3 + 2] = r * Math.sin(theta) * Math.sin(phi);
+                }
+                geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+                const material = new THREE.ShaderMaterial({
+                    vertexShader, fragmentShader,
+                    uniforms: {
+                        u_time: { value: 0 },
+                        u_arraySize: { value: N },
+                        u_type: { value: cfg.type === 'phased_dig' ? 1 : (cfg.type === 'phased_ana' ? 2 : 3) },
+                        u_hyb_nel: { value: cfg.elemsPerChain },
+                        u_desFreq: { value: state.desFreq },
+                        u_txFreq: { value: state.txFreq },
+                        u_bw: { value: state.bw / 1000.0 },
+                        u_subBw: { value: state.subBw / 1000.0 },
+                        u_waveform: { value: state.waveform },
+                        u_numBeams: { value: cfg.numBeams },
+                        u_steerings: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+                        u_pcShifts: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+                        u_edgeOffs: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+                        u_visualShifts: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+                        u_pcComps: { value: Array(8).fill(1) },
+                        u_beamColors: { value: U_BEAM_COLORS },
+                        u_spoils: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) },
+                        u_radius: { value: domeRadius },
+                        u_brightness: { value: state.brightness },
+                        u_dynRange: { value: state.dynRange },
+                        u_vizMode: { value: state.vizMode }
+                    },
+                    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+                });
+
+                const vizGroup = new THREE.Group();
+                const pointCloud = new THREE.Points(geom, material);
+                pointCloud.frustumCulled = false;
+                vizGroup.add(pointCloud);
+
+                const markers = [];
+                for (let b = 0; b < 8; b++) {
+                    const m = new THREE.Mesh(
+                        new THREE.SphereGeometry(VISUAL_SPACING * 0.9, 16, 16),
+                        new THREE.MeshStandardMaterial({ color: BEAM_COLORS[b], emissive: BEAM_COLORS[b], emissiveIntensity: 0.8 })
+                    );
+                    m.position.y = 0.2; m.visible = false;
+                    meshGroup.add(m); markers.push(m);
+                }
+
+                meshGroup.add(vizGroup);
+                return { meshGroup, imesh, vizGroup, material, markers };
+            }
+
+            function rebuildPanels() {
+                state.panels = [];
+                const divContainer = document.getElementById('dividers');
+                divContainer.innerHTML = '';
+
+                for (let i = 0; i < state.nArrays; i++) {
+                    const scene = new THREE.Scene();
+                    scene.add(new THREE.GridHelper(100, 100, 0x1e293b, 0x0a0a11));
+                    const light = new THREE.DirectionalLight(0xffffff, 1.5);
+                    light.position.set(5, 10, 5);
+                    scene.add(light);
+                    scene.add(new THREE.AmbientLight(0x404040, 2));
+
+                    const { meshGroup, imesh, vizGroup, material, markers } = buildPanel(state.arrayConfigs[i]);
+                    scene.add(meshGroup);
+
+                    state.panels.push({ scene, meshGroup, imesh, vizGroup, material, markers, config: state.arrayConfigs[i] });
+
+                    if (i < state.nArrays - 1) {
+                        const div = document.createElement('div');
+                        div.className = 'panel-divider';
+                        div.style.left = `${(100 / state.nArrays) * (i + 1)}%`;
+                        divContainer.appendChild(div);
+                    }
+                }
+                updateUniforms();
+                updateArrayGeometry();
+                updateGains();
+            }
+
+            function updateUniforms() {
+                state.panels.forEach(p => {
+                    const cfg = p.config;
+                    const rawN = Math.max(2, cfg.gridSize);
+                    const N = (cfg.type === 'phased_hyb') ? Math.max(cfg.elemsPerChain, Math.round(rawN / cfg.elemsPerChain) * cfg.elemsPerChain) : rawN;
+                    const renderN = Math.min(N, 128);
+                    const rScale = renderN / N;
+
+                    p.material.uniforms.u_desFreq.value = state.desFreq;
+                    p.material.uniforms.u_txFreq.value = state.txFreq;
+                    p.material.uniforms.u_bw.value = state.bw / 1000.0;
+                    p.material.uniforms.u_subBw.value = state.subBw / 1000.0;
+                    p.material.uniforms.u_waveform.value = state.waveform;
+                    p.material.uniforms.u_brightness.value = state.brightness;
+                    p.material.uniforms.u_dynRange.value = state.dynRange;
+                    p.material.uniforms.u_vizMode.value = state.vizMode;
+
+                    p.material.uniforms.u_arraySize.value = N;
+                    p.material.uniforms.u_type.value = cfg.type === 'phased_dig' ? 1 : (cfg.type === 'phased_ana' ? 2 : 3);
+                    p.material.uniforms.u_hyb_nel.value = cfg.elemsPerChain;
+                    p.material.uniforms.u_numBeams.value = cfg.numBeams;
+
+                    for (let b = 0; b < 8; b++) {
+                        p.material.uniforms.u_steerings.value[b].set(state.steerings[b].cTh, state.steerings[b].cPh);
+                        if (b < cfg.numBeams) {
+                            p.material.uniforms.u_pcShifts.value[b].set(cfg.beams[b].pcX, cfg.beams[b].pcY);
+                            p.material.uniforms.u_edgeOffs.value[b].set(cfg.beams[b].offX || 0, cfg.beams[b].offY || 0);
+                            p.material.uniforms.u_visualShifts.value[b].set(cfg.beams[b].pcX * rScale * VISUAL_SPACING, cfg.beams[b].pcY * rScale * VISUAL_SPACING);
+                            p.material.uniforms.u_pcComps.value[b] = cfg.beams[b].pcCompensate ? 1 : 0;
+                            p.material.uniforms.u_spoils.value[b].set(cfg.beams[b].spoilX || 0, cfg.beams[b].spoilY || 0);
+                        } else {
+                            p.material.uniforms.u_pcShifts.value[b].set(0, 0);
+                            p.material.uniforms.u_edgeOffs.value[b].set(0, 0);
+                            p.material.uniforms.u_visualShifts.value[b].set(0, 0);
+                            p.material.uniforms.u_pcComps.value[b] = 1;
+                            p.material.uniforms.u_spoils.value[b].set(0, 0);
+                        }
+                    }
+                });
+            }
+
+            function updateArrayGeometry() {
+                state.panels.forEach(p => {
+                    const cfg = p.config;
+                    const rawN = Math.max(2, cfg.gridSize);
+                    const N = (cfg.type === 'phased_hyb') ? Math.max(cfg.elemsPerChain, Math.round(rawN / cfg.elemsPerChain) * cfg.elemsPerChain) : rawN;
+                    const renderN = Math.min(N, 128);
+                    const renderScale = renderN / N;
+
+                    let idx = 0;
+                    for (let i = 0; i < renderN; i++) {
+                        for (let j = 0; j < renderN; j++) {
+
+                            let rAcc = 0, gAcc = 0, bAcc = 0, hitBeams = 0;
+
+                            for (let b = 0; b < cfg.numBeams; b++) {
+                                const scaledPcX = cfg.beams[b].pcX * renderScale;
+                                const scaledPcY = cfg.beams[b].pcY * renderScale;
+                                const offX = (cfg.beams[b].offX || 0) * renderScale;
+                                const offY = (cfg.beams[b].offY || 0) * renderScale;
+
+                                const b_rawNx = Math.max(0, renderN - 2 * Math.abs(scaledPcX) - 2 * offX);
+                                const b_rawNy = Math.max(0, renderN - 2 * Math.abs(scaledPcY) - 2 * offY);
+
+                                const Nel = (cfg.type === 'phased_hyb') ? Math.max(1, cfg.elemsPerChain * renderScale) : 1;
+                                const effNx = (cfg.type === 'phased_hyb') ? Math.floor(b_rawNx / Nel) * Nel : b_rawNx;
+                                const effNy = (cfg.type === 'phased_hyb') ? Math.floor(b_rawNy / Nel) * Nel : b_rawNy;
+
+                                const cx = (renderN - 1) / 2.0 + scaledPcX;
+                                const cy = (renderN - 1) / 2.0 + scaledPcY;
+
+                                if (Math.abs(i - cx) <= (effNx / 2.0) + 0.01 && Math.abs(j - cy) <= (effNy / 2.0) + 0.01) {
+                                    // Hardware Array Plate Additive Color Blending
+                                    let c = (state.vizMode !== 1) ? new THREE.Color(0xcd7f32) : BEAM_COLORS[b];
+                                    rAcc += c.r; gAcc += c.g; bAcc += c.b;
+                                    hitBeams++;
+                                }
+                            }
+
+                            if (hitBeams > 0) {
+                                p.imesh.setColorAt(idx, new THREE.Color(Math.min(1.0, rAcc), Math.min(1.0, gAcc), Math.min(1.0, bAcc)));
+                            } else {
+                                p.imesh.setColorAt(idx, new THREE.Color(0x1e293b));
+                            }
+                            idx++;
+                        }
+                    }
+                    p.imesh.instanceColor.needsUpdate = true;
+
+                    for (let b = 0; b < 8; b++) {
+                        if (b < cfg.numBeams) {
+                            p.markers[b].visible = true;
+                            const scaledPcX = cfg.beams[b].pcX * renderScale;
+                            const scaledPcY = cfg.beams[b].pcY * renderScale;
+                            p.markers[b].position.set(scaledPcX * VISUAL_SPACING, 0.25, scaledPcY * VISUAL_SPACING);
+
+                            if (state.vizMode !== 1) {
+                                p.markers[b].material.color.setHex(0xffcc00);
+                                p.markers[b].material.emissive.setHex(0xaa6600);
+                            } else {
+                                p.markers[b].material.color = BEAM_COLORS[b];
+                                p.markers[b].material.emissive = new THREE.Color(BEAM_COLORS[b].r * 0.6, BEAM_COLORS[b].g * 0.6, BEAM_COLORS[b].b * 0.6);
+                            }
+                        } else {
+                            p.markers[b].visible = false;
+                        }
+                    }
+                });
+            }
+
+            function updateGlobalUI() {
+                const legend = document.getElementById('legend-panel');
+                if (state.vizMode === 2 && state.waveform > 0) {
+                    legend.style.display = 'block';
+                    const bwGHz = state.bw / 1000.0;
+                    document.getElementById('lbl-low').innerText = (state.txFreq - bwGHz / 2).toFixed(2) + " GHz";
+                    document.getElementById('lbl-center').innerText = state.txFreq.toFixed(2) + " GHz";
+                    document.getElementById('lbl-high').innerText = (state.txFreq + bwGHz / 2).toFixed(2) + " GHz";
+                } else {
+                    legend.style.display = 'none';
+                }
+            }
+
+            // =====================================================
+            // CONTROLS & ANIMATION LOOP
+            // =====================================================
+            document.getElementById('toggle-btn').onclick = (e) => {
+                state.isPlaying = !state.isPlaying;
+                e.target.innerText = state.isPlaying ? "STOP SIMULATION" : "START SIMULATION";
+                e.target.className = state.isPlaying
+                    ? "w-full py-2 px-4 bg-red-600 hover:bg-red-500 text-white rounded shadow-lg transition-colors font-bold tracking-wide"
+                    : "w-full py-2 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded shadow-lg transition-colors font-bold tracking-wide";
+            };
+
+            window.addEventListener('keydown', e => {
+                const k = e.key.toLowerCase();
+                if (k === 'f') { document.getElementById('ui-panel').classList.toggle('hidden-ui'); if (!document.fullscreenElement) document.body.requestFullscreen().catch(() => { }); else document.exitFullscreen(); }
+                if (state.keys.hasOwnProperty(k)) state.keys[k] = true;
+            });
+            window.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (state.keys.hasOwnProperty(k)) state.keys[k] = false; });
+            window.addEventListener('resize', () => renderer.setSize(window.innerWidth, window.innerHeight));
+
+            const clock = new THREE.Clock();
+            const ACCEL = 0.0003, MAX_SPEED = 0.04;
+
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+
+                let moving = state.keys.w || state.keys.s || state.keys.a || state.keys.d;
+                let activeB = state.activeSteerBeam;
+
+                if (moving) {
+                    if (state.moveSpeed < MAX_SPEED) state.moveSpeed += ACCEL;
+                    let st = state.steerings[activeB];
+                    if (state.keys.w) st.tTh = Math.max(0, st.tTh - state.moveSpeed);
+                    if (state.keys.s) st.tTh = Math.min(Math.PI / 2 - 0.05, st.tTh + state.moveSpeed);
+                    if (state.keys.a) st.tPh -= state.moveSpeed;
+                    if (state.keys.d) st.tPh += state.moveSpeed;
+                } else {
+                    state.moveSpeed = 0.002;
+                }
+
+                let anglesChanged = false;
+                for (let b = 0; b < 8; b++) {
+                    let st = state.steerings[b];
+                    if (Math.abs(st.tTh - st.cTh) > 0.001 || Math.abs(st.tPh - st.cPh) > 0.001) anglesChanged = true;
+                    st.cTh += (st.tTh - st.cTh) * 0.15;
+                    st.cPh += (st.tPh - st.cPh) * 0.15;
+                }
+
+                if (anglesChanged) {
+                    updateGains();
+                    updateStatusLine();
+                    state.panels.forEach(p => {
+                        for (let b = 0; b < 8; b++) {
+                            p.material.uniforms.u_steerings.value[b].set(state.steerings[b].cTh, state.steerings[b].cPh);
+                        }
+                    });
+                }
+
+                if (state.isPlaying) state.time += clock.getDelta(); else clock.getDelta();
+
+                state.panels.forEach(p => {
+                    p.material.uniforms.u_time.value = state.time;
+                });
+
+                renderer.clear();
+                const W = window.innerWidth, H = window.innerHeight;
+                const pW = W / state.nArrays;
+                masterCamera.aspect = pW / H;
+                masterCamera.updateProjectionMatrix();
+
+                for (let i = 0; i < state.nArrays; i++) {
+                    const left = Math.floor(i * pW);
+                    renderer.setViewport(left, 0, Math.floor(pW), H);
+                    renderer.setScissor(left, 0, Math.floor(pW), H);
+                    renderer.setScissorTest(true);
+                    renderer.render(state.panels[i].scene, masterCamera);
+                }
+                renderer.setScissorTest(false);
+            }
+
+            buildGlobalUI(); buildArrayControlsUI(); rebuildPanels(); updateSteeringUI(); updateGlobalUI(); animate();
+        })();
+    </script>
+</body>
+
+</html>

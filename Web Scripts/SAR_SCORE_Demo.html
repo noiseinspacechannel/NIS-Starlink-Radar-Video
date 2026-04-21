@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAR SCORE Demonstrator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        body {
+            background: #171717;
+            color: #c8d6e5;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw
+        }
+
+        #app {
+            display: grid;
+            grid-template-columns: 55% 45%;
+            grid-template-rows: 1fr;
+            height: 100vh;
+            width: 100vw
+        }
+
+        #map-wrap {
+            position: relative;
+            grid-row: 1;
+            grid-column: 1;
+            background: #171717;
+            overflow: hidden
+        }
+
+        #right {
+            display: grid;
+            grid-template-rows: 50% 50%;
+            grid-column: 2;
+            border-left: 1px solid #1e2a3a
+        }
+
+        #sig-wrap {
+            position: relative;
+            border-bottom: 1px solid #1e2a3a;
+            overflow: hidden
+        }
+
+        #map-wrap2 {
+            position: relative;
+            overflow: hidden
+        }
+
+        .panel-label {
+            position: absolute;
+            top: 6px;
+            left: 10px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #4a6a8a;
+            z-index: 5;
+            pointer-events: none
+        }
+
+        canvas.view-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #171717
+        }
+
+        #ctrl {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 290px;
+            max-height: calc(100vh - 20px);
+            overflow-y: auto;
+            background: rgba(8, 12, 24, 0.94);
+            border: 1px solid #1a3050;
+            border-radius: 10px;
+            padding: 10px 12px;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            font-size: 11px;
+            scrollbar-width: thin;
+            scrollbar-color: #1a3050 transparent
+        }
+
+        #ctrl::-webkit-scrollbar {
+            width: 4px
+        }
+
+        #ctrl::-webkit-scrollbar-thumb {
+            background: #1a3050;
+            border-radius: 2px
+        }
+
+        #ctrl h1 {
+            font-size: 13px;
+            color: #e8f0ff;
+            border-bottom: 1px solid #1a3050;
+            padding-bottom: 6px;
+            margin-bottom: 8px
+        }
+
+        .cg {
+            margin-bottom: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 8px;
+            border-radius: 6px
+        }
+
+        .cg h2 {
+            font-size: 9px;
+            color: #5a8ab5;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 4px
+        }
+
+        .cg label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #8aa0b8;
+            margin-bottom: 2px
+        }
+
+        .cg input[type=range] {
+            width: 100%;
+            margin: 2px 0 4px;
+            cursor: pointer;
+            accent-color: #3a8fd4
+        }
+
+        .vd {
+            color: #40e8a0;
+            font-weight: 700;
+            font-size: 11px;
+            min-width: 60px;
+            text-align: right
+        }
+
+        .num-input {
+            width: 52px;
+            background: rgba(10, 18, 32, 0.9);
+            border: 1px solid #1a3050;
+            color: #3aa0e8;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: right;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-left: 4px
+        }
+
+        .num-input:focus {
+            border-color: #3aa0e8;
+            outline: none
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 5px;
+            border-radius: 5px;
+            border: 1px solid #1a3050;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            transition: all 0.3s;
+            background: rgba(20, 30, 50, 0.8);
+            color: #5a8ab5
+        }
+
+        .mode-btn.active {
+            background: rgba(40, 180, 120, 0.25);
+            color: #40e8a0;
+            border-color: #40e8a0;
+            box-shadow: 0 0 12px rgba(40, 232, 160, 0.15)
+        }
+
+        .mode-row {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 6px
+        }
+
+        .score-btn {
+            width: 100%;
+            padding: 5px;
+            margin-top: 4px;
+            border-radius: 5px;
+            border: 1px solid #1a3050;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s
+        }
+
+        .score-btn.off {
+            background: rgba(20, 30, 50, 0.8);
+            color: #5a8ab5
+        }
+
+        .score-btn.on {
+            background: rgba(40, 180, 120, 0.25);
+            color: #40e8a0;
+            border-color: #40e8a0;
+            box-shadow: 0 0 12px rgba(40, 232, 160, 0.15)
+        }
+
+        #fs-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 200;
+            padding: 6px 12px;
+            background: rgba(8, 12, 24, 0.9);
+            border: 1px solid #1a3050;
+            border-radius: 5px;
+            color: #5a8ab5;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.2s
+        }
+
+        #fs-btn:hover {
+            background: #1a2a3a;
+            color: #e8f0ff;
+            border-color: #3a6a9a
+        }
+    </style>
+</head>
+
+<body>
+    <button id="fs-btn">⛶ Fullscreen</button>
+    <div id="app">
+        <div id="map-wrap">
+            <div class="panel-label">Range-Swath View</div>
+            <canvas id="map-canvas" class="view-canvas"></canvas>
+            <div id="ctrl">
+                <h1>SAR SCORE Demo</h1>
+                <div class="cg">
+                    <h2>Demo Mode</h2>
+                    <div class="mode-row">
+                        <button class="mode-btn active" id="btn-mode-ac">✈ Aircraft</button>
+                        <button class="mode-btn" id="btn-mode-mb">◫ Multi-Beam</button>
+                        <button class="mode-btn" id="btn-mode-ms">📡 Multi-SCORE</button>
+                    </div>
+                </div>
+                <div class="cg">
+                    <h2>Geometry</h2>
+                    <label>Altitude (km)<input type="number" class="num-input" id="n-alt" value="500"></label><input
+                        type="range" id="i-alt" min="200" max="2000" step="10" value="500">
+                    <label>Grazing Angle (°)<input type="number" class="num-input" id="n-grz" value="40"
+                            step="0.5"></label><input type="range" id="i-grz" min="5" max="85" step="0.5" value="40">
+                </div>
+                <div class="cg">
+                    <h2>RF Parameters</h2>
+                    <label>Center Freq (GHz)<input type="number" class="num-input" id="n-fc" value="10.0"
+                            step="0.1"></label><input type="range" id="i-fc" min="0.3" max="40" step="0.1" value="10">
+                    <label>Bandwidth (MHz)<input type="number" class="num-input" id="n-bw" value="150"></label><input
+                        type="range" id="i-bw" min="1" max="1000" step="1" value="150">
+                </div>
+                <div class="cg">
+                    <h2>Antenna</h2>
+                    <label>Gain Az (dBi 1D)<input type="number" class="num-input" id="n-gaz" value="25"
+                            step="0.5"></label><input type="range" id="i-gaz" min="5" max="40" step="0.5" value="25">
+                    <label>Gain El (dBi 1D)<input type="number" class="num-input" id="n-gel" value="17"
+                            step="0.5"></label><input type="range" id="i-gel" min="5" max="50" step="0.5" value="17">
+                </div>
+                <div class="cg">
+                    <h2>Timing</h2>
+                    <label>PRF (Hz)<input type="number" class="num-input" id="n-prf" value="4000"
+                            step="100"></label><input type="range" id="i-prf" min="500" max="20000" step="100"
+                        value="4000">
+                    <label>Duty Cycle (%)<input type="number" class="num-input" id="n-dc" value="5"></label><input
+                        type="range" id="i-dc" min="1" max="50" step="1" value="5">
+                </div>
+                <div class="cg">
+                    <h2>SCORE Receive</h2>
+                    <button id="score-btn" class="score-btn on">SCORE: ON</button>
+                    <label>SCORE Rx Gain (dBi)<input type="number" class="num-input" id="n-sg" value="35"></label><input
+                        type="range" id="i-sg" min="20" max="60" step="1" value="35">
+                </div>
+                <div class="cg" id="ac-controls">
+                    <h2>Aircraft Target</h2>
+                    <label>Aircraft Alt (km)<input type="number" class="num-input" id="n-acalt" value="10"
+                            step="0.5"></label><input type="range" id="i-acalt" min="0.5" max="30" step="0.5"
+                        value="10">
+                    <label>Aircraft Position (%)<input type="number" class="num-input" id="n-acpos" value="-30"
+                            step="1"></label><input type="range" id="i-acpos" min="-100" max="200" step="1" value="-30">
+                    <div style="font-size:8px;color:#5a7a9a;text-align:center;margin-top:2px">0 = Near · 100 = Far ·
+                        Negative = Inside of swath</div>
+                    <label>RCS Boost (dB)<input type="number" class="num-input" id="n-rcs" value="30"
+                            step="1"></label><input type="range" id="i-rcs" min="10" max="60" step="1" value="30">
+                    <label>SCORE Target Alt (km)<input type="number" class="num-input" id="n-sta" value="0"
+                            step="0.5"></label><input type="range" id="i-sta" min="0" max="30" step="0.5" value="0">
+                    <div style="font-size:8px;color:#5a7a9a;text-align:center;margin-top:2px">0 = Ground · Set to
+                        aircraft alt to track aircraft</div>
+                </div>
+                <div class="cg" id="mb-controls" style="display:none">
+                    <h2>Multi-Beam TX (Simultaneous Arrival)</h2>
+                    <label>Number of Beams<input type="number" class="num-input" id="n-nb" value="2"></label><input
+                        type="range" id="i-nb" min="1" max="4" step="1" value="2">
+                    <label>Signal Opacity (%)<input type="number" class="num-input" id="n-mbo" value="40"></label><input
+                        type="range" id="i-mbo" min="10" max="100" step="5" value="40">
+                    <label>Wave Particles<input type="number" class="num-input" id="n-mbp" value="20"></label><input
+                        type="range" id="i-mbp" min="1" max="100" step="1" value="20">
+                    <div style="font-size:8px;color:#5a7a9a;margin-top:2px">Auto-calculates beam grazing angles so all
+                        echoes arrive at the same time (mod PRI).</div>
+                </div>
+                <div class="cg" id="ms-controls" style="display:none">
+                    <h2>Multi-Aircraft SCORE</h2>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div>
+                            <label>AC 1 Alt (km)<input type="number" class="num-input" id="n-ms1" value="8"
+                                    step="0.5"></label><input type="range" id="i-ms1" min="0.5" max="25" step="0.5"
+                                value="8">
+                            <label>AC 2 Alt (km)<input type="number" class="num-input" id="n-ms2" value="12"
+                                    step="0.5"></label><input type="range" id="i-ms2" min="0.5" max="25" step="0.5"
+                                value="12">
+                            <label>AC 3 Alt (km)<input type="number" class="num-input" id="n-ms3" value="18"
+                                    step="0.5"></label><input type="range" id="i-ms3" min="0.5" max="25" step="0.5"
+                                value="18">
+                        </div>
+                        <div>
+                            <label>AC 1 Pos (%)<input type="number" class="num-input" id="n-msp1" value="-30"
+                                    step="1"></label><input type="range" id="i-msp1" min="-100" max="200" step="1"
+                                value="-30">
+                            <label>AC 2 Pos (%)<input type="number" class="num-input" id="n-msp2" value="-20"
+                                    step="1"></label><input type="range" id="i-msp2" min="-100" max="200" step="1"
+                                value="-20">
+                            <label>AC 3 Pos (%)<input type="number" class="num-input" id="n-msp3" value="-10"
+                                    step="1"></label><input type="range" id="i-msp3" min="-100" max="200" step="1"
+                                value="-10">
+                        </div>
+                    </div>
+                    <label>RCS Boost (dB)<input type="number" class="num-input" id="n-rcs2" value="30"
+                            step="1"></label><input type="range" id="i-rcs2" min="10" max="60" step="1" value="30">
+                    <div style="font-size:8px;color:#5a7a9a;margin-top:4px">Each SCORE beam scans for a different
+                        altitude surface to collect aircraft returns without ground clutter.</div>
+                </div>
+                <div class="cg">
+                    <h2>Sim Speed</h2>
+                    <label>Speed<input type="number" class="num-input" id="n-ss" value="0.0001"
+                            step="0.0001"></label><input type="range" id="i-ss" min="0.0001" max="5" step="0.0001"
+                        value="0.0001">
+                </div>
+                <div class="cg">
+                    <h2>View</h2>
+                    <label>View Width<input type="number" class="num-input" id="n-vw" value="1.0"
+                            step="0.1"></label><input type="range" id="i-vw" min="0.3" max="5" step="0.1" value="1">
+                </div>
+            </div>
+        </div>
+        <div id="right">
+            <div id="sig-wrap">
+                <div class="panel-label">Signal Timeline</div>
+                <canvas id="sig-canvas" class="view-canvas"></canvas>
+            </div>
+            <div id="map-wrap2">
+                <div class="panel-label">Range-Swath View (Zoomed)</div>
+                <canvas id="map-canvas2" class="view-canvas"></canvas>
+            </div>
+        </div>
+    </div>
+    <script>
+        // ============================================================
+        //  CONSTANTS
+        // ============================================================
+        const C = 299792458, R_E = 6371e3, GM = 3.986004418e14;
+        const DEG = Math.PI / 180;
+
+        // ============================================================
+        //  PARAMETERS
+        // ============================================================
+        const P = {
+            alt: 500, grz: 40, fc: 10, bw: 150, gaz: 25, gel: 17,
+            prf: 4000, dc: 5, score: true, scoreGain: 35, simSpeed: 0.0001,
+            mode: 'aircraft', // 'aircraft', 'multibeam', or 'multiscore'
+            acAlt: 10, acPos: -30, rcsBoost: 30, scoreTargetAlt: 0,
+            nb: 2, mbOpacity: 40, mbParticles: 20,
+            msAlt1: 8, msAlt2: 12, msAlt3: 18,
+            msPos1: -30, msPos2: -20, msPos3: -10,
+            msRcsBoost: 30, viewWidth: 1.0
+        };
+
+        // ============================================================
+        //  CALCULATION ENGINE (stripped)
+        // ============================================================
+        const SAR = {};
+        function recalc() {
+            const h = P.alt * 1e3;
+            const lam = C / (P.fc * 1e9);
+            const psi = P.grz * DEG;
+            const BW = P.bw * 1e6;
+            const Gaz_lin = Math.pow(10, P.gaz / 10);
+            const Gel_lin = Math.pow(10, P.gel / 10);
+            const D_az = Gaz_lin * lam / 2;
+            const D_el = Gel_lin * lam / 2;
+            const theta_az = 0.886 * lam / D_az;
+            const theta_el = 0.886 * lam / D_el;
+            const Gel_rx_lin = Math.pow(10, P.scoreGain / 10);
+            const D_el_rx = Gel_rx_lin * lam / 2;
+            const theta_el_rx = 0.886 * lam / D_el_rx;
+            SAR.theta_el = theta_el;
+            SAR.theta_el_rx = theta_el_rx;
+            const R_orbit = R_E + h;
+            SAR.R_orbit = R_orbit;
+            const V_sat = Math.sqrt(GM / R_orbit);
+            const look_angle = Math.PI / 2 - psi;
+            let sin_inc = (R_orbit / R_E) * Math.sin(look_angle);
+            let inc_angle = sin_inc > 1.0 ? Math.PI / 2 : Math.asin(sin_inc);
+            const gamma = inc_angle - look_angle;
+            const R_slant = Math.sqrt(R_E * R_E + R_orbit * R_orbit - 2 * R_E * R_orbit * Math.cos(gamma));
+            const true_grazing = Math.PI / 2 - inc_angle;
+            const dep_near = psi + theta_el / 2;
+            const dep_far = psi - theta_el / 2;
+            SAR.dep_near = dep_near;
+            SAR.dep_far = dep_far;
+            const look_near = Math.PI / 2 - dep_near;
+            let sin_inc_near = (R_orbit / R_E) * Math.sin(Math.max(look_near, 0));
+            let inc_near = sin_inc_near > 1.0 ? Math.PI / 2 : Math.asin(Math.min(sin_inc_near, 1));
+            const gamma_near = inc_near - Math.max(look_near, 0);
+            const R_near = Math.sqrt(R_E * R_E + R_orbit * R_orbit - 2 * R_E * R_orbit * Math.cos(gamma_near));
+            const look_far = Math.PI / 2 - Math.max(dep_far, 0.01);
+            let sin_inc_far = (R_orbit / R_E) * Math.sin(look_far);
+            let inc_far = sin_inc_far > 1.0 ? Math.PI / 2 : Math.asin(Math.min(sin_inc_far, 1));
+            const gamma_far = inc_far - look_far;
+            const R_far = Math.sqrt(R_E * R_E + R_orbit * R_orbit - 2 * R_E * R_orbit * Math.cos(gamma_far));
+            const gnd_near = gamma_near * R_E;
+            const gnd_far = gamma_far * R_E;
+            const swath_ground_range = Math.abs(gnd_far - gnd_near);
+            const swath_slant = Math.abs(R_far - R_near);
+            const PW = (P.dc / 100) / P.prf;
+            const PRI = 1 / P.prf;
+
+            // Aircraft target geometry
+            const acAlt_m = P.acAlt * 1e3;
+            // Aircraft position within swath (0%=near, 100%=far)
+            const acFrac = P.acPos / 100;
+            const gamma_ac = gamma_near + acFrac * (gamma_far - gamma_near);
+            // Aircraft position (in the plane: origin at Earth center)
+            const ac_x = (R_E + acAlt_m) * Math.sin(gamma_ac);
+            const ac_y = (R_E + acAlt_m) * Math.cos(gamma_ac);
+            const sat_x = 0;
+            const sat_y = R_orbit;
+            const R_ac = Math.sqrt((ac_x - sat_x) ** 2 + (ac_y - sat_y) ** 2);
+            const ac_look = Math.atan2(ac_x - sat_x, sat_y - ac_y);
+            const ac_dep = Math.PI / 2 - ac_look;
+
+            // Multi-beam: auto-calculate grazing angles so echoes arrive simultaneously
+            // Each beam's round-trip time differs from beam 0 by exactly n*PRI
+            // so all echoes land at the same position within the PRI cycle.
+            SAR.beams = [];
+            if (P.mode === 'multibeam') {
+                const N = P.nb;
+                // Beam 0 = the user's primary grazing angle
+                // For beam i, we want R_i such that 2*R_i/c = 2*R_slant/c + i * PRI
+                // i.e. R_i = R_slant + i * c * PRI / 2
+                for (let b = 0; b < N; b++) {
+                    const targetR = R_slant + b * C * PRI / 2;
+                    // Inverse geometry: from slant range, find gamma
+                    // R^2 = R_E^2 + R_orbit^2 - 2*R_E*R_orbit*cos(gamma)
+                    // cos(gamma) = (R_E^2 + R_orbit^2 - R^2) / (2*R_E*R_orbit)
+                    const cosG = (R_E * R_E + R_orbit * R_orbit - targetR * targetR) / (2 * R_E * R_orbit);
+                    if (cosG < -1 || cosG > 1) continue; // unreachable
+                    const bGamma = Math.acos(cosG);
+                    // Recover depression angle from gamma using sine rule
+                    // sin(look) = R_E * sin(gamma) / R_slant_actual
+                    const bR = targetR;
+                    const sinLook = R_E * Math.sin(bGamma) / bR;
+                    if (sinLook > 1) continue;
+                    const bLook = Math.asin(sinLook);
+                    const bDep = Math.PI / 2 - bLook;
+                    // Beam edges (adapt beamwidth to match swath_slant of beam 0)
+                    let bThetaEl = theta_el;
+                    const getSwath = (th) => {
+                        const bDepN_tmp = bDep + th / 2;
+                        const bDepF_tmp = Math.max(bDep - th / 2, 0.01);
+                        const bLkN_tmp = Math.max(Math.PI / 2 - bDepN_tmp, 0);
+                        const bLkF_tmp = Math.PI / 2 - bDepF_tmp;
+                        const bSiN_tmp = Math.min((R_orbit / R_E) * Math.sin(bLkN_tmp), 1);
+                        const bSiF_tmp = Math.min((R_orbit / R_E) * Math.sin(bLkF_tmp), 1);
+                        const bInN_tmp = Math.asin(bSiN_tmp), bInF_tmp = Math.asin(bSiF_tmp);
+                        const bGN_tmp = bInN_tmp - bLkN_tmp, bGF_tmp = bInF_tmp - bLkF_tmp;
+                        const bRN_tmp = Math.sqrt(R_E * R_E + R_orbit * R_orbit - 2 * R_E * R_orbit * Math.cos(bGN_tmp));
+                        const bRF_tmp = Math.sqrt(R_E * R_E + R_orbit * R_orbit - 2 * R_E * R_orbit * Math.cos(bGF_tmp));
+                        return { dR: bRF_tmp - bRN_tmp, bGN: bGN_tmp, bGF: bGF_tmp, bRN: bRN_tmp, bRF: bRF_tmp };
+                    };
+                    const s1 = getSwath(bThetaEl);
+                    bThetaEl = bThetaEl * (swath_slant / s1.dR);
+                    const s2 = getSwath(bThetaEl);
+                    SAR.beams.push({ dep: bDep, gamma: bGamma, R: bR, gammaN: s2.bGN, gammaF: s2.bGF, RN: s2.bRN, RF: s2.bRF, priOffset: b, theta_el: bThetaEl });
+                }
+            }
+
+            // Check if aircraft is within the transmit beam (-3dB)
+            const ac_off_boresight = ac_dep - psi;
+            const acInBeam = Math.abs(ac_off_boresight) < theta_el / 2;
+
+            // Multi-aircraft geometry (Mode 3)
+            const msAircraft = [];
+            if (P.mode === 'multiscore') {
+                const msAlts = [P.msAlt1, P.msAlt2, P.msAlt3];
+                const msPos = [P.msPos1, P.msPos2, P.msPos3];
+                msAlts.forEach((alt_km, idx) => {
+                    const alt_m = alt_km * 1e3;
+                    const f = msPos[idx] / 100;
+                    const msGamma = gamma_near + f * (gamma_far - gamma_near);
+                    const ms_x = (R_E + alt_m) * Math.sin(msGamma);
+                    const ms_y = (R_E + alt_m) * Math.cos(msGamma);
+                    const ms_R = Math.sqrt((ms_x - 0) ** 2 + (ms_y - R_orbit) ** 2);
+                    const ms_look = Math.atan2(ms_x, R_orbit - ms_y);
+                    const ms_dep = Math.PI / 2 - ms_look;
+                    const msInBeam = Math.abs(ms_dep - psi) < theta_el / 2;
+                    msAircraft.push({ alt_m, gamma: msGamma, x: ms_x, y: ms_y, R: ms_R, dep: ms_dep, inBeam: msInBeam });
+                });
+            }
+
+            Object.assign(SAR, {
+                h, lam, psi, BW, D_az, D_el, theta_az, theta_el, theta_el_rx,
+                V_sat, R_slant, R_near, R_far, R_orbit,
+                swath_ground_range, swath_slant, PW, PRI,
+                gnd_near, gnd_far, gamma_near, gamma_far, gamma,
+                R_ac, ac_dep, ac_x, ac_y, gamma_ac, acAlt_m, acInBeam,
+                D_el_rx, msAircraft
+            });
+        }
+        recalc();
+
+        function beamPatternEl(angle_off_boresight) {
+            const u = Math.PI * SAR.D_el * Math.sin(angle_off_boresight) / SAR.lam;
+            if (Math.abs(u) < 1e-10) return 1;
+            const s = Math.sin(u) / u;
+            return s * s;
+        }
+        function beamPatternElRx(angle_off_boresight) {
+            const u = Math.PI * SAR.D_el_rx * Math.sin(angle_off_boresight) / SAR.lam;
+            if (Math.abs(u) > Math.PI) return 0.0001; // Cut off sidelobes visually to demonstrate slicing
+            if (Math.abs(u) < 1e-10) return 1;
+            const s = Math.sin(u) / u;
+            return s * s;
+        }
+
+        function scoreScanDep(twoR_time, h_target) {
+            const R_sc = (twoR_time * C) / 2;
+            const R_surface = R_E + h_target;
+            const R_orb = SAR.R_orbit;
+            // Law of cosines to find angle from earth center (gamma)
+            const cosG = (R_orb * R_orb + R_surface * R_surface - R_sc * R_sc) / (2 * R_orb * R_surface);
+            if (cosG < -1 || cosG > 1) return SAR.psi;
+            const gamma_sc = Math.acos(cosG);
+            // Find depression angle from satellite (Law of Sines)
+            const sinLook = R_surface * Math.sin(gamma_sc) / Math.max(1, R_sc);
+            if (sinLook > 1) return Math.asin(1);
+            return Math.PI / 2 - Math.asin(sinLook);
+        }
+
+        // ============================================================
+        //  INPUT BINDINGS
+        // ============================================================
+        function bindInput(sliderId, numId, key) {
+            const slider = document.getElementById(sliderId);
+            const num = document.getElementById(numId);
+            function update(val) {
+                P[key] = parseFloat(val);
+                slider.value = P[key]; num.value = P[key];
+                recalc();
+            }
+            slider.addEventListener('input', () => update(slider.value));
+            num.addEventListener('change', () => update(num.value));
+        }
+        bindInput('i-alt', 'n-alt', 'alt');
+        bindInput('i-grz', 'n-grz', 'grz');
+        bindInput('i-fc', 'n-fc', 'fc');
+        bindInput('i-bw', 'n-bw', 'bw');
+        bindInput('i-gaz', 'n-gaz', 'gaz');
+        bindInput('i-gel', 'n-gel', 'gel');
+        bindInput('i-prf', 'n-prf', 'prf');
+        bindInput('i-dc', 'n-dc', 'dc');
+        bindInput('i-sg', 'n-sg', 'scoreGain');
+        bindInput('i-ss', 'n-ss', 'simSpeed');
+        bindInput('i-acalt', 'n-acalt', 'acAlt');
+        bindInput('i-acpos', 'n-acpos', 'acPos');
+        bindInput('i-rcs', 'n-rcs', 'rcsBoost');
+        bindInput('i-sta', 'n-sta', 'scoreTargetAlt');
+        bindInput('i-nb', 'n-nb', 'nb');
+        bindInput('i-mbo', 'n-mbo', 'mbOpacity');
+        bindInput('i-mbp', 'n-mbp', 'mbParticles');
+        bindInput('i-ms1', 'n-ms1', 'msAlt1');
+        bindInput('i-ms2', 'n-ms2', 'msAlt2');
+        bindInput('i-ms3', 'n-ms3', 'msAlt3');
+        bindInput('i-msp1', 'n-msp1', 'msPos1');
+        bindInput('i-msp2', 'n-msp2', 'msPos2');
+        bindInput('i-msp3', 'n-msp3', 'msPos3');
+        bindInput('i-rcs2', 'n-rcs2', 'msRcsBoost');
+        if (document.getElementById('i-vw')) bindInput('i-vw', 'n-vw', 'viewWidth');
+
+        document.getElementById('score-btn').addEventListener('click', function () {
+            P.score = !P.score;
+            this.className = 'score-btn ' + (P.score ? 'on' : 'off');
+            this.textContent = 'SCORE: ' + (P.score ? 'ON' : 'OFF');
+            recalc();
+        });
+
+        // Mode toggle
+        function setMode(mode) {
+            P.mode = mode;
+            ['ac', 'mb', 'ms'].forEach(m => {
+                document.getElementById('btn-mode-' + m).classList.toggle('active', m === { aircraft: 'ac', multibeam: 'mb', multiscore: 'ms' }[mode]);
+            });
+            document.getElementById('ac-controls').style.display = mode === 'aircraft' ? '' : 'none';
+            document.getElementById('mb-controls').style.display = mode === 'multibeam' ? '' : 'none';
+            document.getElementById('ms-controls').style.display = mode === 'multiscore' ? '' : 'none';
+            recalc();
+        }
+        document.getElementById('btn-mode-ac').addEventListener('click', () => setMode('aircraft'));
+        document.getElementById('btn-mode-mb').addEventListener('click', () => setMode('multibeam'));
+        document.getElementById('btn-mode-ms').addEventListener('click', () => setMode('multiscore'));
+
+        document.getElementById('fs-btn').addEventListener('click', () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e => console.log(e));
+            else document.exitFullscreen();
+        });
+        document.addEventListener('fullscreenchange', () => {
+            const fsBtn = document.getElementById('fs-btn');
+            const ctrl = document.getElementById('ctrl');
+            const mw2 = document.getElementById('map-wrap2');
+            const right = document.getElementById('right');
+            if (document.fullscreenElement) {
+                fsBtn.style.display = 'none';
+                ctrl.style.display = 'none';
+                mw2.style.display = 'none';
+                right.style.gridTemplateRows = '1fr';
+            } else {
+                fsBtn.style.display = 'block';
+                ctrl.style.display = '';
+                mw2.style.display = '';
+                right.style.gridTemplateRows = '50% 50%';
+            }
+            handleResize();
+        });
+
+        // ============================================================
+        //  SIGNAL TIMELINE VIEW
+        // ============================================================
+        const sigCanvas = document.getElementById('sig-canvas');
+        const sigCtx = sigCanvas.getContext('2d');
+        const BEAM_COLORS = ['#3aa0e8', '#e8a040', '#a070e8', '#e85050'];
+        const BEAM_COLORS_RGBA = ['58,160,232', '232,160,64', '160,112,232', '232,80,80'];
+
+        function drawSignal() {
+            const sw = document.getElementById('sig-wrap');
+            const W = sw.clientWidth, H = sw.clientHeight;
+            sigCtx.fillStyle = '#171717'; sigCtx.fillRect(0, 0, W, H);
+            const PRI = SAR.PRI, PW = SAR.PW;
+            const twoR_near = 2 * SAR.R_near / C;
+            const twoR_far = 2 * SAR.R_far / C;
+            const twoR_center = 2 * SAR.R_slant / C;
+            const echoMod = ((twoR_near % PRI) + PRI) % PRI;
+            const echoDur = twoR_far - twoR_near;
+            const nWrap = Math.floor(twoR_center / PRI);
+            const refPRI = 1 / 4000;
+            const priW = Math.max(20, (W / 4) * (PRI / refPRI));
+            const scrollX = simTime * priW;
+            const baseY = H * 0.62, ampMax = H * 0.38;
+            const numP = Math.ceil(W / Math.max(priW, 1)) + 2;
+            const startP = Math.floor(scrollX / priW);
+            const t2px = priW / PRI;
+
+            // Grid lines
+            sigCtx.strokeStyle = '#252525'; sigCtx.lineWidth = 1;
+            for (let i = startP; i <= startP + numP; i++) {
+                const x = i * priW - scrollX;
+                sigCtx.beginPath(); sigCtx.moveTo(x, 30); sigCtx.lineTo(x, H); sigCtx.stroke();
+            }
+            sigCtx.strokeStyle = '#2a2a2a'; sigCtx.lineWidth = 0.5;
+            sigCtx.beginPath(); sigCtx.moveTo(0, baseY); sigCtx.lineTo(W, baseY); sigCtx.stroke();
+
+            for (let i = startP; i <= startP + numP; i++) {
+                const xO = i * priW - scrollX;
+                if (xO > W + priW || xO < -priW) continue;
+                const txW = Math.max(PW * t2px, 2);
+
+                // Tx pulse
+                const tg = sigCtx.createLinearGradient(xO, baseY - ampMax, xO, baseY);
+                tg.addColorStop(0, 'rgba(232,208,64,0.85)'); tg.addColorStop(1, 'rgba(232,180,20,0.15)');
+                sigCtx.fillStyle = tg;
+                sigCtx.fillRect(xO, baseY - ampMax, txW, ampMax);
+
+                if (P.mode === 'aircraft') {
+                    // Draw ground echo (use the SCORE target alt so ground gets attenuated when SCORE is tuned away)
+                    drawEchoSegments(sigCtx, xO, t2px, baseY, ampMax, PW, PRI, twoR_near, twoR_far, echoMod, echoDur, SAR.psi, P.score ? 'score_ground' : 'ground', P.scoreTargetAlt * 1e3);
+                    // Draw aircraft echo (only if beam intersects)
+                    if (SAR.acInBeam) {
+                        const twoR_ac = 2 * SAR.R_ac / C;
+                        const acEchoMod = ((twoR_ac % PRI) + PRI) % PRI;
+                        const acDur = PW;
+                        drawEchoSegments(sigCtx, xO, t2px, baseY, ampMax, PW, PRI, twoR_ac, twoR_ac, acEchoMod, acDur, SAR.ac_dep, P.score ? 'score_aircraft' : 'aircraft', P.scoreTargetAlt * 1e3);
+                    }
+                } else if (P.mode === 'multibeam') {
+                    // Multi-beam: draw split signal lanes, one per receiver beam, similar to multiscore
+                    const laneH = (H - 30) / Math.max(1, SAR.beams.length);
+                    SAR.beams.forEach((rxBeam, rxBi) => {
+                        const laneTop = 30 + rxBi * laneH;
+                        const laneBaseY = laneTop + laneH * 0.75;
+                        const laneAmpMax = laneH * 0.6;
+                        
+                        // Line separator
+                        if (rxBi > 0) {
+                            sigCtx.strokeStyle = '#2a2a2a'; sigCtx.lineWidth = 1;
+                            sigCtx.beginPath(); sigCtx.moveTo(0, laneTop); sigCtx.lineTo(W, laneTop); sigCtx.stroke();
+                        }
+                        
+                        // Label
+                        sigCtx.fillStyle = `rgb(${BEAM_COLORS_RGBA[rxBi % 4]})`; sigCtx.font = '8px sans-serif';
+                        sigCtx.fillText(`Beam ${rxBi + 1} SCORE`, xO > 0 ? 4 : xO + 4, laneTop + 10);
+                        
+                        // TX pulse
+                        const txWL = Math.max(PW * t2px, 1.5);
+                        const tgL = sigCtx.createLinearGradient(xO, laneBaseY - laneAmpMax, xO, laneBaseY);
+                        tgL.addColorStop(0, 'rgba(232,208,64,0.6)'); tgL.addColorStop(1, 'rgba(232,180,20,0.08)');
+                        sigCtx.fillStyle = tgL;
+                        sigCtx.fillRect(xO, laneBaseY - laneAmpMax, txWL, laneAmpMax);
+
+                        // Draw EVERY beam's echo into this receiver's lane
+                        SAR.beams.forEach((txBeam, txBi) => {
+                            const bTwoRN = 2 * txBeam.RN / C;
+                            const bTwoRF = 2 * txBeam.RF / C;
+                            const bEchoMod = ((bTwoRN % PRI) + PRI) % PRI;
+                            const bEchoDur = bTwoRF - bTwoRN;
+                            drawEchoSegments(sigCtx, xO, t2px, laneBaseY, laneAmpMax, PW, PRI, bTwoRN, bTwoRF, bEchoMod, bEchoDur, txBeam.dep, 'beam_' + txBi, 0, rxBi);
+                        });
+                    });
+                } else if (P.mode === 'multiscore') {
+                    // Multi-SCORE: draw separate signal lanes per SCORE beam
+                    const msScoreAlts = [0, P.msAlt1 * 1e3, P.msAlt2 * 1e3, P.msAlt3 * 1e3];
+                    const msLaneLabels = ['Ground SCORE', 'AC1 SCORE', 'AC2 SCORE', 'AC3 SCORE'];
+                    const msLaneColors = ['#40e8a0', '#e8a040', '#a070e8', '#e85050'];
+                    const laneH = (H - 30) / 4; // 30px for header
+                    for (let li = 0; li < 4; li++) {
+                        const laneTop = 30 + li * laneH;
+                        const laneBaseY = laneTop + laneH * 0.75;
+                        const laneAmpMax = laneH * 0.6;
+                        const altM = msScoreAlts[li];
+
+                        // Lane separator line
+                        if (li > 0) {
+                            sigCtx.strokeStyle = '#2a2a2a'; sigCtx.lineWidth = 1;
+                            sigCtx.beginPath(); sigCtx.moveTo(0, laneTop); sigCtx.lineTo(W, laneTop); sigCtx.stroke();
+                        }
+                        // Lane label
+                        sigCtx.fillStyle = msLaneColors[li]; sigCtx.font = '8px sans-serif';
+                        sigCtx.fillText(msLaneLabels[li], xO > 0 ? 4 : xO + 4, laneTop + 10);
+
+                        // TX pulse (small)
+                        const txWL = Math.max(PW * t2px, 1.5);
+                        const tgL = sigCtx.createLinearGradient(xO, laneBaseY - laneAmpMax, xO, laneBaseY);
+                        tgL.addColorStop(0, 'rgba(232,208,64,0.6)'); tgL.addColorStop(1, 'rgba(232,180,20,0.08)');
+                        sigCtx.fillStyle = tgL;
+                        sigCtx.fillRect(xO, laneBaseY - laneAmpMax, txWL, laneAmpMax);
+
+                        // Ground echo through this SCORE beam
+                        drawEchoSegments(sigCtx, xO, t2px, laneBaseY, laneAmpMax, PW, PRI, twoR_near, twoR_far, echoMod, echoDur, SAR.psi, 'score_ground', altM);
+                        // Each aircraft echo through this SCORE beam
+                        SAR.msAircraft.forEach((ac, ai) => {
+                            if (ac.inBeam) {
+                                const twoR_ms = 2 * ac.R / C;
+                                const msEchoMod = ((twoR_ms % PRI) + PRI) % PRI;
+                                drawEchoSegments(sigCtx, xO, t2px, laneBaseY, laneAmpMax, PW, PRI, twoR_ms, twoR_ms, msEchoMod, PW, ac.dep, 'ms_' + ai, altM);
+                            }
+                        });
+                    }
+                }
+                sigCtx.fillStyle = '#333'; sigCtx.font = '8px sans-serif'; sigCtx.fillText(`${i + 1}`, xO + 3, H - 4);
+            }
+
+            // Header
+            sigCtx.fillStyle = 'rgba(23,23,23,0.9)'; sigCtx.fillRect(0, 0, W, 28);
+            sigCtx.strokeStyle = '#333'; sigCtx.beginPath(); sigCtx.moveTo(0, 28); sigCtx.lineTo(W, 28); sigCtx.stroke();
+            sigCtx.fillStyle = '#6a8aaa'; sigCtx.font = '10px sans-serif';
+            sigCtx.fillText(`PW: ${(PW * 1e6).toFixed(1)} μs`, 130, 18);
+            sigCtx.fillText(`PRI: ${(PRI * 1e6).toFixed(0)} μs`, 220, 18);
+            sigCtx.fillText(`Echo: ${(twoR_center * 1e6).toFixed(0)} μs (×${nWrap})`, 310, 18);
+        }
+
+        function drawEchoSegments(ctx, xO, t2px, baseY, ampMax, PW, PRI, twoR_near, twoR_far, echoMod, echoDur, boresightDep, type, scoreTargetAltM, receiverBeamIdx = -1) {
+            scoreTargetAltM = scoreTargetAltM || 0;
+            const totalDur = echoDur + PW;
+            const segs = [];
+            let seg_s = echoMod, seg_rem = totalDur, seg_f0 = 0;
+            while (seg_rem > 1e-12 && segs.length < 20) {
+                const chunk = Math.min(seg_rem, PRI - seg_s);
+                const seg_f1 = seg_f0 + chunk / totalDur;
+                segs.push({ s: seg_s, e: seg_s + chunk, f0: seg_f0, f1: seg_f1 });
+                seg_s = 0; seg_rem -= chunk; seg_f0 = seg_f1;
+            }
+
+            let strokeColor, fillRgba, rcsGain = 1;
+            if (type === 'ground' || type === 'score_ground') {
+                strokeColor = P.score ? '#40e8a0' : '#3aa0e8';
+                fillRgba = P.score ? '64,232,160' : '58,160,232';
+            } else if (type === 'aircraft' || type === 'score_aircraft') {
+                strokeColor = '#e8a040';
+                fillRgba = '232,160,64';
+                rcsGain = Math.pow(10, P.rcsBoost / 20);
+            } else if (type.startsWith('beam_')) {
+                const bi = parseInt(type.split('_')[1]);
+                strokeColor = BEAM_COLORS[bi % 4];
+                fillRgba = BEAM_COLORS_RGBA[bi % 4];
+            } else if (type.startsWith('ms_')) {
+                const ai = parseInt(type.split('_')[1]);
+                const MS_COLORS = ['#e8a040', '#a070e8', '#e85050'];
+                const MS_RGBA = ['232,160,64', '160,112,232', '232,80,80'];
+                strokeColor = MS_COLORS[ai % 3];
+                fillRgba = MS_RGBA[ai % 3];
+                rcsGain = Math.pow(10, P.msRcsBoost / 20);
+            }
+
+            // SCORE scan uses global scoreScanDep function
+
+            segs.forEach(seg => {
+                ctx.beginPath(); ctx.moveTo(xO + seg.s * t2px, baseY);
+                for (let s = 0; s <= 80; s++) {
+                    const lf = s / 80, gf = seg.f0 + lf * (seg.f1 - seg.f0);
+                    const t = twoR_near + gf * totalDur;
+                    const overlapStart = Math.max(t - PW, twoR_near);
+                    const overlapEnd = Math.min(t, twoR_far + PW);
+                    const overlap = Math.max(0, overlapEnd - overlapStart);
+                    const envelope = Math.min(overlap / PW, 1);
+
+                    let g = 0;
+                    if (envelope > 0) {
+                        const R_center = ((overlapStart + overlapEnd) / 2) * C / 2;
+                        const R_orb = R_E + SAR.h;
+                        const cos_look = (R_orb * R_orb + R_center * R_center - R_E * R_E) / (2 * R_orb * Math.max(1, R_center));
+                        const dep_angle_target = Math.PI / 2 - Math.acos(Math.max(-1, Math.min(1, cos_look)));
+
+                        let txBoresight = SAR.psi;
+                        if (type.startsWith('beam_')) {
+                            const bi = parseInt(type.split('_')[1]);
+                            txBoresight = SAR.beams[bi].dep;
+                        }
+                        const tx_dir = beamPatternEl(dep_angle_target - txBoresight);
+                        let rx_dir = tx_dir;
+
+                        if (P.score) {
+                            const t_ctr = Math.max(twoR_near, Math.min(t - PW / 2, twoR_far + PW));
+                            let arrivalDep = boresightDep; // point target (aircraft) uses its specific single angle
+                            if (type === 'ground' || type === 'score_ground' || type.startsWith('beam_')) {
+                                arrivalDep = scoreScanDep(t_ctr, 0); // Ground echoes sweep their arrival angle
+                            }
+                            
+                            let rxBounds = [SAR.dep_far, SAR.dep_near];
+                            let receiver_t = t_ctr;
+                            if (receiverBeamIdx >= 0) {
+                                // Multibeam: align SCORE timing modulo PRI correctly
+                                const drawBeamPri = parseInt(type.split('_')[1] || "0");
+                                receiver_t = t_ctr - (drawBeamPri - receiverBeamIdx) * PRI;
+                                rxBounds = [SAR.beams[receiverBeamIdx].depF, SAR.beams[receiverBeamIdx].depN];
+                            }
+                            const scoreDep = scoreScanDep(receiver_t, scoreTargetAltM); // Angle SCORE beam is pointing at
+                            if (scoreDep < rxBounds[0] || scoreDep > rxBounds[1]) {
+                                rx_dir = 0; // Receive beam points outside Tx swath
+                            } else {
+                                rx_dir = beamPatternElRx(arrivalDep - scoreDep);
+                            }
+                        }
+                        g = Math.sqrt(tx_dir * rx_dir) * envelope * rcsGain;
+                    }
+                    const lt = seg.s + lf * (seg.e - seg.s);
+                    ctx.lineTo(xO + lt * t2px, baseY - Math.min(g, 1.5) * ampMax * 0.55);
+                }
+                ctx.lineTo(xO + seg.e * t2px, baseY); ctx.closePath();
+                const rg = ctx.createLinearGradient(0, baseY - ampMax * 0.5, 0, baseY);
+                rg.addColorStop(0, `rgba(${fillRgba},0.4)`); rg.addColorStop(1, `rgba(${fillRgba},0.05)`);
+                ctx.fillStyle = rg; 
+                if (type.startsWith('beam_') && SAR.beams && SAR.beams.length > 1) {
+                    ctx.globalAlpha = P.mbOpacity / 100;
+                }
+                ctx.fill();
+                ctx.strokeStyle = strokeColor; ctx.lineWidth = 1; ctx.stroke();
+                ctx.globalAlpha = 1;
+            });
+        }
+
+        // ============================================================
+        //  2-D RANGE-SWATH VIEW
+        // ============================================================
+        const mapCanvas = document.getElementById('map-canvas');
+        const mapCtx = mapCanvas.getContext('2d');
+
+        function drawMap() {
+            const mw = document.getElementById('map-wrap');
+            const W = mw.clientWidth, H = mw.clientHeight;
+            mapCtx.fillStyle = '#171717'; mapCtx.fillRect(0, 0, W, H);
+            const h_m = P.alt * 1e3;
+            const R_orbit_m = R_E + h_m;
+            const margin = 30;
+            const sY = margin, sX = W * 0.35;
+
+            const grzRad = Math.max(P.grz * DEG, 0.01);
+            const look_c = Math.PI / 2 - grzRad;
+            const sin_inc_c = Math.min((R_orbit_m / R_E) * Math.sin(look_c), 1.0);
+            const inc_c = Math.asin(sin_inc_c);
+            const gamma_c = inc_c - look_c;
+            const dep_n = grzRad + SAR.theta_el / 2;
+            const look_n = Math.max(Math.PI / 2 - dep_n, 0);
+            const sin_inc_n = Math.min((R_orbit_m / R_E) * Math.sin(look_n), 1.0);
+            const inc_n = Math.asin(sin_inc_n);
+            const gamma_n = inc_n - look_n;
+            const dep_f = Math.max(grzRad - SAR.theta_el / 2, 0.01);
+            const look_f = Math.PI / 2 - dep_f;
+            const sin_inc_f = Math.min((R_orbit_m / R_E) * Math.sin(look_f), 1.0);
+            const inc_f = Math.asin(sin_inc_f);
+            const gamma_f = inc_f - look_f;
+
+            const h_px_default = (H - 2 * margin) * 0.9;
+            const scale = (h_px_default / h_m) / P.viewWidth;
+            const h_px = h_m * scale;
+            const R_E_px = R_E * scale;
+            const nadirY = sY + h_px;
+            const eCx = sX, eCy = nadirY + R_E_px;
+
+            function gp(gamma) { return { x: eCx + R_E_px * Math.sin(gamma), y: eCy - R_E_px * Math.cos(gamma) }; }
+            function arcA(gamma) { return -Math.PI / 2 + gamma; }
+
+            const gpC = gp(gamma_c), gpN = gp(gamma_n), gpF = gp(gamma_f);
+            function slantPx(gamma) { const g = gp(gamma); return Math.sqrt((g.x - sX) ** 2 + (g.y - sY) ** 2); }
+
+            // Earth arc - apply viewWidth to extend lines horizontally
+            let arcExt, gMin, gMax;
+            const vwMul = P.viewWidth;
+            if (P.mode === 'multibeam' && SAR.beams.length > 0) {
+                const allGammaF = SAR.beams.map(b => b.gammaF);
+                const allGammaN = SAR.beams.map(b => b.gammaN);
+                const maxG = Math.max(gamma_f, ...allGammaF);
+                const minG = Math.min(gamma_n, ...allGammaN);
+                arcExt = Math.max(maxG * 0.6, 0.015) * Math.max(1, vwMul);
+                gMin = Math.max(minG - arcExt, -0.2 * Math.max(1, vwMul));
+                gMax = maxG + arcExt;
+            } else {
+                arcExt = Math.max(gamma_f * 0.6, 0.015) * Math.max(1, vwMul);
+                const acGamma = SAR.gamma_ac;
+                const minG_raw = Math.min(0, gamma_n, acGamma);
+                const maxG_raw = Math.max(gamma_f, acGamma);
+                gMin = Math.max(minG_raw - arcExt, -0.2 * Math.max(1, vwMul));
+                gMax = maxG_raw + arcExt;
+            }
+
+            // Earth body
+            const ptMin = gp(gMin), ptMax = gp(gMax);
+            mapCtx.fillStyle = 'rgba(40,80,40,0.04)';
+            mapCtx.beginPath();
+            mapCtx.arc(eCx, eCy, R_E_px, arcA(gMin), arcA(gMax));
+            mapCtx.lineTo(ptMax.x, H + 10); mapCtx.lineTo(ptMin.x, H + 10);
+            mapCtx.closePath(); mapCtx.fill();
+            mapCtx.strokeStyle = '#4a6a3a'; mapCtx.lineWidth = 2;
+            mapCtx.beginPath(); mapCtx.arc(eCx, eCy, R_E_px, arcA(gMin), arcA(gMax)); mapCtx.stroke();
+
+            // Draw beams based on mode
+            if (P.mode === 'multibeam') {
+                SAR.beams.forEach((beam, bi) => {
+                    const bGPN = gp(beam.gammaN), bGPF = gp(beam.gammaF);
+                    const col = BEAM_COLORS[bi % 4];
+                    const colRgba = BEAM_COLORS_RGBA[bi % 4];
+                    mapCtx.save(); mapCtx.globalAlpha = 0.07; mapCtx.fillStyle = col;
+                    mapCtx.beginPath(); mapCtx.moveTo(sX, sY);
+                    mapCtx.lineTo(bGPF.x, bGPF.y);
+                    mapCtx.arc(eCx, eCy, R_E_px, arcA(beam.gammaF), arcA(beam.gammaN), true);
+                    mapCtx.closePath(); mapCtx.fill();
+                    mapCtx.globalAlpha = 1; mapCtx.restore();
+                    mapCtx.strokeStyle = `rgba(${colRgba},0.3)`; mapCtx.lineWidth = 1; mapCtx.setLineDash([4, 4]);
+                    mapCtx.beginPath(); mapCtx.moveTo(sX, sY); mapCtx.lineTo(bGPF.x, bGPF.y);
+                    mapCtx.moveTo(sX, sY); mapCtx.lineTo(bGPN.x, bGPN.y); mapCtx.stroke(); mapCtx.setLineDash([]);
+                });
+            } else {
+                // Single tx beam
+                mapCtx.save(); mapCtx.globalAlpha = 0.07; mapCtx.fillStyle = '#3a8fd4';
+                mapCtx.beginPath(); mapCtx.moveTo(sX, sY);
+                mapCtx.lineTo(gpF.x, gpF.y);
+                mapCtx.arc(eCx, eCy, R_E_px, arcA(gamma_f), arcA(gamma_n), true);
+                mapCtx.closePath(); mapCtx.fill();
+                mapCtx.globalAlpha = 1; mapCtx.restore();
+                mapCtx.strokeStyle = 'rgba(58,143,212,0.25)'; mapCtx.lineWidth = 1; mapCtx.setLineDash([4, 4]);
+                mapCtx.beginPath(); mapCtx.moveTo(sX, sY); mapCtx.lineTo(gpF.x, gpF.y);
+                mapCtx.moveTo(sX, sY); mapCtx.lineTo(gpN.x, gpN.y); mapCtx.stroke(); mapCtx.setLineDash([]);
+                mapCtx.strokeStyle = 'rgba(232,208,64,0.12)'; mapCtx.beginPath();
+                mapCtx.moveTo(sX, sY); mapCtx.lineTo(gpC.x, gpC.y); mapCtx.stroke();
+            }
+
+            // Aircraft icons
+            if (P.mode === 'aircraft') {
+                const acGamma = SAR.gamma_ac;
+                const acR_E_plus = R_E_px * (R_E + SAR.acAlt_m) / R_E;
+                const acPt = { x: eCx + acR_E_plus * Math.sin(acGamma), y: eCy - acR_E_plus * Math.cos(acGamma) };
+                const gndPt = gp(acGamma);
+                mapCtx.strokeStyle = 'rgba(232,160,64,0.3)'; mapCtx.lineWidth = 1; mapCtx.setLineDash([2, 3]);
+                mapCtx.beginPath(); mapCtx.moveTo(gndPt.x, gndPt.y); mapCtx.lineTo(acPt.x, acPt.y); mapCtx.stroke(); mapCtx.setLineDash([]);
+                mapCtx.fillStyle = '#e8a040';
+                mapCtx.beginPath();
+                mapCtx.moveTo(acPt.x, acPt.y - 4); mapCtx.lineTo(acPt.x + 8, acPt.y + 2); mapCtx.lineTo(acPt.x + 3, acPt.y + 1);
+                mapCtx.lineTo(acPt.x + 3, acPt.y + 5); mapCtx.lineTo(acPt.x, acPt.y + 3); mapCtx.lineTo(acPt.x - 3, acPt.y + 5);
+                mapCtx.lineTo(acPt.x - 3, acPt.y + 1); mapCtx.lineTo(acPt.x - 8, acPt.y + 2);
+                mapCtx.closePath(); mapCtx.fill();
+                mapCtx.fillStyle = '#e8a040'; mapCtx.font = '8px sans-serif';
+                mapCtx.fillText(`✈ ${P.acAlt} km`, acPt.x + 10, acPt.y - 2);
+                mapCtx.strokeStyle = 'rgba(232,160,64,0.15)'; mapCtx.lineWidth = 1;
+                mapCtx.beginPath(); mapCtx.moveTo(sX, sY); mapCtx.lineTo(acPt.x, acPt.y); mapCtx.stroke();
+            }
+            // Multi-aircraft icons (Mode 3)
+            if (P.mode === 'multiscore' && SAR.msAircraft.length > 0) {
+                const MS_COLORS = ['#e8a040', '#a070e8', '#e85050'];
+                SAR.msAircraft.forEach((ac, ai) => {
+                    const acR_px = R_E_px * (R_E + ac.alt_m) / R_E;
+                    const acPt = { x: eCx + acR_px * Math.sin(ac.gamma), y: eCy - acR_px * Math.cos(ac.gamma) };
+                    const gndPt = gp(ac.gamma);
+                    mapCtx.strokeStyle = MS_COLORS[ai] + '44'; mapCtx.lineWidth = 1; mapCtx.setLineDash([2, 3]);
+                    mapCtx.beginPath(); mapCtx.moveTo(gndPt.x, gndPt.y); mapCtx.lineTo(acPt.x, acPt.y); mapCtx.stroke(); mapCtx.setLineDash([]);
+                    mapCtx.fillStyle = MS_COLORS[ai];
+                    mapCtx.beginPath();
+                    mapCtx.moveTo(acPt.x, acPt.y - 3); mapCtx.lineTo(acPt.x + 6, acPt.y + 1.5); mapCtx.lineTo(acPt.x + 2, acPt.y + 0.5);
+                    mapCtx.lineTo(acPt.x + 2, acPt.y + 4); mapCtx.lineTo(acPt.x, acPt.y + 2.5); mapCtx.lineTo(acPt.x - 2, acPt.y + 4);
+                    mapCtx.lineTo(acPt.x - 2, acPt.y + 0.5); mapCtx.lineTo(acPt.x - 6, acPt.y + 1.5);
+                    mapCtx.closePath(); mapCtx.fill();
+                    mapCtx.font = '7px sans-serif';
+                    mapCtx.fillText(`AC${ai + 1} ${(ac.alt_m / 1e3).toFixed(0)}km`, acPt.x + 8, acPt.y - 1);
+                });
+            }
+
+            // SCORE Rx beam visualization
+            if (P.score) {
+                const PRI_s = SAR.PRI;
+                let t_start = 2 * SAR.R_near / C;
+                let t_end = 2 * SAR.R_far / C;
+                if (P.mode === 'aircraft' && SAR.acInBeam) {
+                    t_start = Math.min(t_start, 2 * SAR.R_ac / C - SAR.PW);
+                } else if (P.mode === 'multiscore') {
+                    SAR.msAircraft.forEach(ac => {
+                        if (ac.inBeam) t_start = Math.min(t_start, 2 * ac.R / C - SAR.PW);
+                    });
+                }
+                const echoMod_s = ((t_start % PRI_s) + PRI_s) % PRI_s;
+                const echoDur_s = t_end - t_start;
+                const tNow_s = (simTime % 1) * PRI_s;
+                let isRx = false, eFrac = 0;
+                const eE_s = echoMod_s + echoDur_s;
+                if (eE_s > PRI_s) {
+                    if (tNow_s >= echoMod_s) { isRx = true; eFrac = (tNow_s - echoMod_s) / echoDur_s; }
+                    else if (tNow_s <= eE_s - PRI_s) { isRx = true; eFrac = (tNow_s + PRI_s - echoMod_s) / echoDur_s; }
+                } else {
+                    if (tNow_s >= echoMod_s && tNow_s <= eE_s) { isRx = true; eFrac = (tNow_s - echoMod_s) / echoDur_s; }
+                }
+                if (isRx) {
+                    const t_now_s = t_start + eFrac * echoDur_s;
+                    const t_ctr = Math.max(t_start, Math.min(t_now_s - SAR.PW / 2, t_end));
+
+                    // Determine which SCORE target altitudes to visualize
+                    const scoreTargets = [];
+                    if (P.mode === 'aircraft') {
+                        scoreTargets.push({ h: P.scoreTargetAlt * 1e3, color: '#40e8a0' });
+                    } else if (P.mode === 'multiscore') {
+                        scoreTargets.push({ h: 0, color: '#40e8a0' }); // ground SCORE
+                        const MS_SCORE_COLORS = ['#e8a040', '#a070e8', '#e85050'];
+                        [P.msAlt1, P.msAlt2, P.msAlt3].forEach((alt, i) => {
+                            scoreTargets.push({ h: alt * 1e3, color: MS_SCORE_COLORS[i] });
+                        });
+                    } else if (P.mode === 'multibeam') {
+                        SAR.beams.forEach((beam, bi) => {
+                            scoreTargets.push({ 
+                                h: 0, 
+                                color: BEAM_COLORS[bi % 4], 
+                                bounds: [beam.depF, beam.depN],
+                                tOffset: beam.priOffset * SAR.PRI
+                            });
+                        });
+                    } else {
+                        scoreTargets.push({ h: 0, color: '#40e8a0' }); // ground
+                    }
+
+                    scoreTargets.forEach(st => {
+                        const target_t = t_ctr + (st.tOffset || 0);
+                        const rxDep = scoreScanDep(target_t, st.h);
+                        const [minDep, maxDep] = st.bounds || [SAR.dep_far, SAR.dep_near];
+                        if (rxDep < minDep || rxDep > maxDep) return; // Do not render if pointing outside its own Tx swath
+
+                        const thetaRx = SAR.theta_el_rx;
+                        const rxDepN = rxDep + thetaRx / 2;
+                        const rxDepF = Math.max(rxDep - thetaRx / 2, 0.01);
+                        const rxLkN = Math.max(Math.PI / 2 - rxDepN, 0);
+                        const rxLkF = Math.PI / 2 - rxDepF;
+                        const rxSiN = Math.min((R_orbit_m / R_E) * Math.sin(rxLkN), 1.0);
+                        const rxSiF = Math.min((R_orbit_m / R_E) * Math.sin(rxLkF), 1.0);
+                        const rxIncN = Math.asin(rxSiN), rxIncF = Math.asin(rxSiF);
+                        const rxGN = rxIncN - rxLkN, rxGF = rxIncF - rxLkF;
+                        const rxPN = gp(rxGN), rxPF = gp(rxGF);
+                        mapCtx.save(); mapCtx.globalAlpha = 0.1; mapCtx.fillStyle = st.color;
+                        mapCtx.beginPath(); mapCtx.moveTo(sX, sY);
+                        mapCtx.lineTo(rxPF.x, rxPF.y);
+                        mapCtx.arc(eCx, eCy, R_E_px, arcA(rxGF), arcA(rxGN), true);
+                        mapCtx.closePath(); mapCtx.fill();
+                        mapCtx.globalAlpha = 1; mapCtx.restore();
+                        mapCtx.strokeStyle = st.color; mapCtx.globalAlpha = 0.5; mapCtx.lineWidth = 1; mapCtx.setLineDash([2, 5]);
+                        mapCtx.beginPath(); mapCtx.moveTo(sX, sY); mapCtx.lineTo(rxPF.x, rxPF.y);
+                        mapCtx.moveTo(sX, sY); mapCtx.lineTo(rxPN.x, rxPN.y); mapCtx.stroke(); mapCtx.setLineDash([]); mapCtx.globalAlpha = 1;
+                    });
+                }
+            }
+
+            // Scatterers on surface - placed across all relevant beams
+            const nScPerBeam = P.mode === 'multibeam' ? P.mbParticles : 20;
+            const allScPts = []; // { x, y, dist, angle, beamIdx }
+            if (P.mode === 'multibeam' && SAR.beams.length > 0) {
+                SAR.beams.forEach((beam, bi) => {
+                    for (let i = 0; i < nScPerBeam; i++) {
+                        const f = i / (nScPerBeam - 1);
+                        const gamma_i = beam.gammaN + f * (beam.gammaF - beam.gammaN);
+                        const pt = gp(gamma_i);
+                        const d = Math.sqrt((pt.x - sX) ** 2 + (pt.y - sY) ** 2);
+                        const angle = Math.atan2(pt.y - sY, pt.x - sX);
+                        allScPts.push({ x: pt.x, y: pt.y, dist: d, angle, bi });
+                    }
+                    // Draw scatterer dots
+                    for (let i = 0; i < nScPerBeam; i++) {
+                        const f = i / (nScPerBeam - 1);
+                        const gamma_i = beam.gammaN + f * (beam.gammaF - beam.gammaN);
+                        const pt = gp(gamma_i);
+                        mapCtx.fillStyle = 'rgba(100,180,100,0.25)'; mapCtx.beginPath();
+                        mapCtx.arc(pt.x, pt.y, 1.5, 0, Math.PI * 2); mapCtx.fill();
+                    }
+                });
+            } else {
+                for (let i = 0; i < 35; i++) {
+                    const f = i / 34;
+                    const gamma_i = gamma_n + f * (gamma_f - gamma_n);
+                    const pt = gp(gamma_i);
+                    const d = Math.sqrt((pt.x - sX) ** 2 + (pt.y - sY) ** 2);
+                    const angle = Math.atan2(pt.y - sY, pt.x - sX);
+                    allScPts.push({ x: pt.x, y: pt.y, dist: d, angle, bi: 0 });
+                    mapCtx.fillStyle = 'rgba(100,180,100,0.25)'; mapCtx.beginPath();
+                    mapCtx.arc(pt.x, pt.y, 1.5, 0, Math.PI * 2); mapCtx.fill();
+                }
+            }
+
+            // Pulse propagation for each beam
+            const satToGndPx = slantPx(gamma_c);
+            const pwPx = (SAR.PW * C) * (satToGndPx / SAR.R_slant);
+            const numP_pri = 2 * SAR.R_slant / (C * SAR.PRI);
+            const maxTxPulses = Math.ceil(numP_pri * 3);
+            const maxRxPulses = Math.ceil(numP_pri * 2);
+
+            if (P.mode === 'multibeam' && SAR.beams.length > 0) {
+                // Draw TX arcs and echo waves per beam
+                SAR.beams.forEach((beam, bi) => {
+                    const bGPC = gp(beam.gamma);
+                    const bGPN = gp(beam.gammaN), bGPF = gp(beam.gammaF);
+                    const bSlant = Math.sqrt((bGPC.x - sX) ** 2 + (bGPC.y - sY) ** 2);
+                    const bDir = Math.atan2(bGPC.y - sY, bGPC.x - sX);
+                    const bHalfA = Math.max(
+                        Math.abs(Math.atan2(bGPN.y - sY, bGPN.x - sX) - bDir),
+                        Math.abs(Math.atan2(bGPF.y - sY, bGPF.x - sX) - bDir)
+                    );
+                    const bNumP = 2 * beam.R / (C * SAR.PRI);
+                    const colRgba = BEAM_COLORS_RGBA[bi % 4];
+
+                    // TX arcs
+                    mapCtx.save();
+                    mapCtx.beginPath(); mapCtx.rect(0, 0, W, H); mapCtx.arc(eCx, eCy, R_E_px, 0, Math.PI * 2); mapCtx.clip("evenodd");
+                    for (let k = 0; k <= maxTxPulses; k++) {
+                        const pi = Math.floor(simTime) - k;
+                        if (pi < 0) break;
+                        const d_px = ((simTime - pi) / bNumP) * bSlant;
+                        const pLead = d_px, pTrail = Math.max(0, d_px - pwPx);
+                        const pw = pLead - pTrail;
+                        if (pw <= 0) continue;
+                        const txFrac = d_px / bSlant;
+                        if (txFrac > 1.2) continue; // stop calculating after it's well past the ground
+                        mapCtx.strokeStyle = `rgba(${colRgba},0.55)`;
+                        mapCtx.lineWidth = Math.max(1, pw);
+                        const drawR = Math.max(0.1, pTrail + pw / 2);
+                        mapCtx.beginPath(); mapCtx.arc(sX, sY, drawR, bDir - bHalfA, bDir + bHalfA); mapCtx.stroke();
+                    }
+                    mapCtx.restore();
+
+                    // Echo waves from this beam's scatterers
+                    const beamSc = allScPts.filter(s => s.bi === bi);
+                    for (const s of beamSc) {
+                        const hit_delay_p = (s.dist / bSlant) * (bNumP / 2); // one-way time to hit ground
+                        const newest_hit = Math.floor(simTime - hit_delay_p);
+                        for (let k = 0; k <= maxRxPulses; k++) {
+                            const pi = newest_hit - k;
+                            if (pi < 0) break;
+                            const echo_t = simTime - (pi + hit_delay_p);
+                            const r_echo = (echo_t / (bNumP / 2)) * bSlant; // echo travels at c
+                            const pTrailE = Math.max(0, r_echo - pwPx);
+                            const pWidthE = r_echo - pTrailE;
+                            if (pWidthE <= 0) continue;
+                            const echoFrac = r_echo / s.dist;
+                            if (echoFrac > 2.3) continue;
+                            const aLim = 0.35;
+                            const a = echoFrac < 1.3 ? aLim : Math.max(0, aLim * (1 - (echoFrac - 1.3) / 1.0));
+                            mapCtx.strokeStyle = `rgba(${colRgba},${a})`;
+                            mapCtx.lineWidth = Math.max(1, pWidthE);
+                            const drawR = Math.max(0.1, pTrailE + pWidthE / 2);
+                            mapCtx.beginPath(); mapCtx.arc(s.x, s.y, drawR, 0, Math.PI * 2); mapCtx.stroke();
+                        }
+                    }
+                });
+            } else {
+                // Single beam TX arcs + echo waves (aircraft mode or single beam)
+                const bDir2 = Math.atan2(gpC.y - sY, gpC.x - sX);
+                const halfA = Math.max(
+                    Math.abs(Math.atan2(gpN.y - sY, gpN.x - sX) - bDir2),
+                    Math.abs(Math.atan2(gpF.y - sY, gpF.x - sX) - bDir2)
+                );
+                // Single beam TX arcs
+                mapCtx.save();
+                mapCtx.beginPath(); mapCtx.rect(0, 0, W, H); mapCtx.arc(eCx, eCy, R_E_px, 0, Math.PI * 2); mapCtx.clip("evenodd");
+                for (let k = 0; k <= maxTxPulses; k++) {
+                    const i = Math.floor(simTime) - k;
+                    if (i < 0) break;
+                    const d_px = ((simTime - i) / numP_pri) * satToGndPx;
+                    const pLead = d_px, pTrail = Math.max(0, d_px - pwPx);
+                    const pWidth = pLead - pTrail;
+                    if (pWidth <= 0) continue;
+                    const txFrac = d_px / satToGndPx;
+                    if (txFrac > 1.2) continue;
+                    mapCtx.strokeStyle = `rgba(232,208,64,0.7)`;
+                    mapCtx.lineWidth = Math.max(1, pWidth);
+                    const drawR = Math.max(0.1, pTrail + pWidth / 2);
+                    mapCtx.beginPath(); mapCtx.arc(sX, sY, drawR, bDir2 - halfA, bDir2 + halfA); mapCtx.stroke();
+                }
+                mapCtx.restore();
+                // Echo waves from scatterers
+                for (const s of allScPts) {
+                    const hit_delay_p = (s.dist / satToGndPx) * (numP_pri / 2);
+                    const newest_hit_idx = Math.floor(simTime - hit_delay_p);
+                    for (let k = 0; k <= maxRxPulses; k++) {
+                        const i = newest_hit_idx - k;
+                        if (i < 0) break;
+                        const echo_time = simTime - (i + hit_delay_p);
+                        const r_echo = (echo_time / (numP_pri / 2)) * satToGndPx;
+                        const pTrailE = Math.max(0, r_echo - pwPx);
+                        const pWidthE = r_echo - pTrailE;
+                        if (pWidthE <= 0) continue;
+                        const echoFrac = r_echo / s.dist;
+                        if (echoFrac > 2.3) continue;
+                        const ad = Math.abs(s.angle - Math.atan2(gpC.y - sY, gpC.x - sX));
+                        if (ad < Math.PI / 2) {
+                            const aLim = 0.4;
+                            const a = echoFrac < 1.3 ? aLim : Math.max(0, aLim * (1 - (echoFrac - 1.3) / 1.0));
+                            mapCtx.strokeStyle = P.score ? `rgba(64,232,160,${a})` : `rgba(58,160,232,${a})`;
+                            mapCtx.lineWidth = Math.max(1, pWidthE);
+                            const drawR = Math.max(0.1, pTrailE + pWidthE / 2);
+                            mapCtx.beginPath(); mapCtx.arc(s.x, s.y, drawR, 0, Math.PI * 2); mapCtx.stroke();
+                        }
+                    }
+                }
+            }
+
+            // Aircraft echo waves (orange circles, aircraft mode only, if beam intersects)
+            if (P.mode === 'aircraft' && SAR.acInBeam) {
+                const acGamma = SAR.gamma_ac;
+                const acR_E_plus = R_E_px * (R_E + SAR.acAlt_m) / R_E;
+                const acPt = { x: eCx + acR_E_plus * Math.sin(acGamma), y: eCy - acR_E_plus * Math.cos(acGamma) };
+                const acDist = Math.sqrt((acPt.x - sX) ** 2 + (acPt.y - sY) ** 2);
+                const ac_hit_delay_p = (acDist / satToGndPx) * (numP_pri / 2);
+                const acNewest = Math.floor(simTime - ac_hit_delay_p);
+                for (let k = 0; k <= maxRxPulses; k++) {
+                    const i = acNewest - k;
+                    if (i < 0) break;
+                    const echo_time = simTime - (i + ac_hit_delay_p);
+                    const r_echo = (echo_time / (numP_pri / 2)) * satToGndPx;
+                    const pTrailE = Math.max(0, r_echo - pwPx);
+                    const pWidthE = r_echo - pTrailE;
+                    if (pWidthE <= 0) continue;
+                    const echoFrac = r_echo / acDist;
+                    if (echoFrac > 2.3) continue;
+                    const a = echoFrac < 1.3 ? 0.5 : Math.max(0, 0.5 * (1 - (echoFrac - 1.3) / 1.0));
+                    mapCtx.strokeStyle = `rgba(232,160,64,${a})`;
+                    mapCtx.lineWidth = Math.max(1, pWidthE);
+                    const drawR = Math.max(0.1, pTrailE + pWidthE / 2);
+                    mapCtx.beginPath(); mapCtx.arc(acPt.x, acPt.y, drawR, 0, Math.PI * 2); mapCtx.stroke();
+                }
+            }
+            // Multi-score aircraft echo waves
+            if (P.mode === 'multiscore') {
+                const MS_ECHO_COLORS_RGBA = ['232,160,64', '160,112,232', '232,80,80'];
+                SAR.msAircraft.forEach((ac, ai) => {
+                    if (ac.inBeam) {
+                        const msR_E_plus = R_E_px * (R_E + ac.alt_m) / R_E;
+                        const msPt = { x: eCx + msR_E_plus * Math.sin(ac.gamma), y: eCy - msR_E_plus * Math.cos(ac.gamma) };
+                        const msDist = Math.sqrt((msPt.x - sX) ** 2 + (msPt.y - sY) ** 2);
+                        const ms_hit_delay_p = (msDist / satToGndPx) * (numP_pri / 2);
+                        const msNewest = Math.floor(simTime - ms_hit_delay_p);
+                        for (let k = 0; k <= maxRxPulses; k++) {
+                            const ii = msNewest - k;
+                            if (ii < 0) break;
+                            const echo_time = simTime - (ii + ms_hit_delay_p);
+                            const r_echo = (echo_time / (numP_pri / 2)) * satToGndPx;
+                            const pTrailE = Math.max(0, r_echo - pwPx);
+                            const pWidthE = r_echo - pTrailE;
+                            if (pWidthE <= 0) continue;
+                            const echoFrac = r_echo / msDist;
+                            if (echoFrac > 2.3) continue;
+                            const a = echoFrac < 1.3 ? 0.5 : Math.max(0, 0.5 * (1 - (echoFrac - 1.3) / 1.0));
+                            mapCtx.strokeStyle = `rgba(${MS_ECHO_COLORS_RGBA[ai]},${a})`;
+                            mapCtx.lineWidth = Math.max(1, pWidthE);
+                            const drawR = Math.max(0.1, pTrailE + pWidthE / 2);
+                            mapCtx.beginPath(); mapCtx.arc(msPt.x, msPt.y, drawR, 0, Math.PI * 2); mapCtx.stroke();
+                        }
+                    }
+                });
+            }
+
+            // Satellite icon
+            mapCtx.fillStyle = '#ddd'; mapCtx.fillRect(sX - 10, sY - 2, 20, 5);
+            mapCtx.fillStyle = '#3a6a9a'; mapCtx.fillRect(sX - 22, sY - 1, 13, 3); mapCtx.fillRect(sX + 10, sY - 1, 13, 3);
+            mapCtx.fillStyle = '#5a8ab5'; mapCtx.font = '8px sans-serif'; mapCtx.fillText('SAT', sX - 8, sY - 6);
+            mapCtx.fillStyle = '#4a6a3a'; mapCtx.fillText('GROUND', 8, nadirY - 4);
+            mapCtx.fillStyle = '#444'; mapCtx.font = '8px sans-serif';
+            mapCtx.fillText(`R: ${(SAR.R_slant / 1e3).toFixed(0)} km`, W - 68, sY + 18);
+            mapCtx.fillText(`ψ: ${P.grz}°`, W - 68, sY + 28);
+        }
+
+        // ============================================================
+        //  2ND 2D VIEW (duplicate/zoomed)
+        // ============================================================
+        const mapCanvas2 = document.getElementById('map-canvas2');
+        const mapCtx2 = mapCanvas2.getContext('2d');
+        function drawMap2() {
+            // For now, mirror info panel
+            const mw = document.getElementById('map-wrap2');
+            const W = mw.clientWidth, H = mw.clientHeight;
+            mapCtx2.fillStyle = '#171717'; mapCtx2.fillRect(0, 0, W, H);
+            mapCtx2.fillStyle = '#4a6a8a'; mapCtx2.font = '11px sans-serif';
+            const y0 = 30;
+            const fmt = (v, d = 1) => isFinite(v) ? v.toFixed(d) : '--';
+            const items = [
+                ['Slant Range', `${fmt(SAR.R_slant / 1e3, 1)} km`],
+                ['Swath (Ground)', `${fmt(SAR.swath_ground_range / 1e3, 2)} km`],
+                ['PW', `${fmt(SAR.PW * 1e6, 1)} μs`],
+                ['PRI', `${fmt(SAR.PRI * 1e6, 0)} μs`],
+                ['Beam El', `${fmt(SAR.theta_el / DEG, 2)}°`],
+                ['SCORE Rx El', `${fmt(SAR.theta_el_rx / DEG, 3)}°`],
+            ];
+            if (P.mode === 'aircraft') {
+                items.push(['Aircraft Range', `${fmt(SAR.R_ac / 1e3, 1)} km`]);
+                items.push(['Aircraft Dep', `${fmt(SAR.ac_dep / DEG, 2)}°`]);
+                items.push(['In Beam', SAR.acInBeam ? 'YES' : 'NO']);
+                items.push(['RCS Boost', `${P.rcsBoost} dB`]);
+                items.push(['SCORE Target Alt', `${P.scoreTargetAlt} km`]);
+            } else if (P.mode === 'multibeam') {
+                items.push(['Num Beams', `${SAR.beams.length}`]);
+                SAR.beams.forEach((b, i) => {
+                    items.push([`Beam ${i + 1} Grz`, `${fmt((Math.PI / 2 - (Math.PI / 2 - b.dep)) / DEG, 2)}° (${b.priOffset > 0 ? '+' + b.priOffset : '0'} PRI)`]);
+                    items.push([`Beam ${i + 1} R`, `${fmt(b.R / 1e3, 1)} km`]);
+                });
+            } else if (P.mode === 'multiscore') {
+                items.push(['SCORE Beams', '4 (ground + 3 aircraft)']);
+                SAR.msAircraft.forEach((ac, i) => {
+                    items.push([`AC${i + 1} Alt`, `${(ac.alt_m / 1e3).toFixed(0)} km`]);
+                    items.push([`AC${i + 1} Range`, `${fmt(ac.R / 1e3, 1)} km`]);
+                    items.push([`AC${i + 1} In Beam`, ac.inBeam ? 'YES' : 'NO']);
+                });
+            }
+            items.forEach((item, i) => {
+                mapCtx2.fillStyle = '#5a7a9a'; mapCtx2.fillText(item[0], 15, y0 + i * 18);
+                mapCtx2.fillStyle = '#40e8a0'; mapCtx2.fillText(item[1], 160, y0 + i * 18);
+            });
+        }
+
+        // ============================================================
+        //  RESIZE
+        // ============================================================
+        function handleResize() {
+            [['sig-wrap', sigCanvas, sigCtx], ['map-wrap', mapCanvas, mapCtx], ['map-wrap2', mapCanvas2, mapCtx2]].forEach(([wid, cvs, ctx]) => {
+                const el = document.getElementById(wid);
+                cvs.width = el.clientWidth * devicePixelRatio;
+                cvs.height = el.clientHeight * devicePixelRatio;
+                cvs.style.width = el.clientWidth + 'px';
+                cvs.style.height = el.clientHeight + 'px';
+                ctx.scale(devicePixelRatio, devicePixelRatio);
+            });
+        }
+        window.addEventListener('resize', handleResize);
+
+        // ============================================================
+        //  ANIMATION LOOP
+        // ============================================================
+        let simTime = 0, lastTime = 0;
+        function animate(time) {
+            requestAnimationFrame(animate);
+            const dt = Math.min(time - lastTime, 50);
+            lastTime = time;
+            const real_dt = (dt / 1000) * P.simSpeed;
+            simTime += real_dt * P.prf;
+
+            sigCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+            drawSignal();
+            mapCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+            drawMap();
+            mapCtx2.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+            drawMap2();
+        }
+
+        handleResize();
+        recalc();
+        requestAnimationFrame(animate);
+    </script>
+</body>
+
+</html>
